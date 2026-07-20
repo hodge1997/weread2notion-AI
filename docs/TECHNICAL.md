@@ -120,6 +120,10 @@ pytest
 
 不要把 API Key、Notion Token 或 `.env` 提交到 Git。全量同步的 JSON 备份可能包含你的书名、划线和笔记，也应作为私密数据保存。
 
+## AI 生成声明
+
+本项目的代码、文档以及 Notion 模板适配工作完全由 OpenAI ChatGPT（Codex，GPT-5 系列模型）生成。
+
 ## License
 
 MIT

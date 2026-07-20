@@ -93,6 +93,10 @@ Secret 名称必须完全一致，并注意以下对应关系：
 - [技术文档与本地运行说明](docs/TECHNICAL.md)
 - [微信读书助手](https://weread.qq.com/r/weread-skills)
 
+## AI 生成声明
+
+本项目的代码、文档以及 Notion 模板适配工作完全由 OpenAI ChatGPT（Codex，GPT-5 系列模型）生成。
+
 ## License
 
 MIT
