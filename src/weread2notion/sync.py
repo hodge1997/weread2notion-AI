@@ -17,7 +17,7 @@ BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
 TAG_ICON = "https://www.notion.so/icons/tag_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
-SYNC_VERSION = 2
+SYNC_VERSION = 3
 
 
 class Synchronizer:

@@ -19,6 +19,7 @@ def test_shelf_timestamp_does_not_mark_unread_book_as_reading():
     assert (
         progress_status({"progress": 0, "isStartReading": 0, "updateTime": 1}) == "想读"
     )
+    assert progress_status({"progress": 0, "isStartReading": 1}) == "想读"
     assert progress_status({"progress": 0, "readingTime": 60}) == "在读"
 
 

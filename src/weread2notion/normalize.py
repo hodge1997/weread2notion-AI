@@ -39,12 +39,7 @@ def progress_status(progress: dict[str, Any]) -> str:
         return "已读"
     # updateTime may be present for books that were only added to the shelf, so
     # it must not be treated as evidence that reading has started.
-    if (
-        value > 0
-        or progress.get("isStartReading")
-        or progress.get("readingTime")
-        or progress.get("recordReadingTime")
-    ):
+    if value > 0 or progress.get("readingTime") or progress.get("recordReadingTime"):
         return "在读"
     return "想读"
 
