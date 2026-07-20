@@ -1,130 +1,97 @@
-# WeRead2Notion
+# WeRead2Notion AI
 
-将微信读书的书架、阅读进度、章节、划线、个人想法和阅读统计同步到
-WeRead2Notion Pro 模板，同时保留 Notion 页面原有的分栏、目录、视图、公式和样式。
+将你的微信读书书架、阅读进度、章节、划线、个人想法和阅读统计，自动同步到一套完整的 Notion 阅读管理模板。
 
-## Notion 模板
+无需在电脑上长期运行程序。完成一次配置后，GitHub Actions 会每天自动同步。
 
-[复制 WeRead2Notion AI 模板](https://app.notion.com/p/wph/Codex-fd729affe5af83119383810f23b49175)
+## 开始使用
 
-## 设计原则
+### 第一步：复制 Notion 模板
 
-- **不重写主页**：同步器只创建、更新或归档数据库行，不调用整页内容替换。
-- **全量同步先备份**：`--full` 会先导出所有数据库行为 JSON，再将旧行移入 Notion 回收站。
-- **使用微信读书 Gateway API**：不需要 Cookie，API Key 从环境变量读取。
-- **适配 Pro 模板关系**：支持书架、作者、分类、章节、划线、笔记、日、周、月、年，以及可选的阅读记录数据库。
-- **完整书架口径**：电子书、专辑/有声书和文章收藏都会进入书架。
-- **区分笔记口径**：统计总数包含书签；实际可导出的内容只有划线与个人想法/点评。
+打开下面的模板页面，然后点击右上角的 `Duplicate`，将它复制到你自己的 Notion Workspace：
 
-## 要求
+[复制 WeRead2Notion AI Template](https://app.notion.com/p/wph/Template-3a329affe5af800b8581f98b71e948fb)
 
-- Python 3.10+
-- 已复制 WeRead2Notion Pro 模板
-- Notion Integration 已获得目标页面及所有子数据库权限
-- 微信读书 Gateway API Key
+复制完成后，请保存新页面的完整 URL。后面配置 `NOTION_PAGE` 时会用到它。
 
-模板页面必须包含这些数据库：
+> 请使用 Duplicate 后的新页面，不要填写上面的公共模板地址。每次 Duplicate 都会生成一个新的页面 ID。
 
-`书架`、`笔记`、`划线`、`日`、`周`、`月`、`年`、`分类`、`作者`、`章节`
+### 第二步：创建并连接 Notion Integration
 
-数据库可以放在页面分栏或其他容器内；同步器会递归发现它们。数据库视图、筛选、
-排序、公式和页面布局不会被修改。
+1. 打开 [Notion Integrations](https://www.notion.so/profile/integrations)。
+2. 点击 `New integration`。
+3. 名称填写 `WeRead2Notion-AI`。
+4. Workspace 选择刚才复制模板所在的 Workspace。
+5. 在 Capabilities 中启用：
+   - `Read content`
+   - `Insert content`
+   - `Update content`
+6. 保存并复制生成的 Internal Integration Secret，后面将它配置为 `NOTION_TOKEN`。
+7. 返回 Duplicate 后的 Notion 页面，点击右上角 `••• → Connections`，添加 `WeRead2Notion-AI`。
 
-## 配置
+Integration 必须连接到最外层的“微信读书”模板页面，这样才能访问页面内的书架、笔记、划线和统计数据库。
 
-```bash
-cp .env.example .env
-```
+### 第三步：Fork 项目并配置 Secrets
 
-```dotenv
-WEREAD_API_KEY=wrk_xxx
-NOTION_TOKEN=ntn_xxx
-NOTION_PAGE=https://www.notion.so/your-page-id
-```
+点击 GitHub 页面右上角的 `Fork`，将本项目 Fork 到你自己的 GitHub 账号。
 
-可选配置：
+进入你 Fork 后的仓库，然后打开：
 
-```dotenv
-START_YEAR=2023
-BACKUP_DIR=backups
-NOTION_VERSION=2026-03-11
-NOTION_REQUEST_INTERVAL=0.34
-```
+`Settings → Secrets and variables → Actions → New repository secret`
 
-## 安装与运行
+依次创建以下三个 Repository secrets：
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
+| Secret 名称 | 填写内容 |
+| --- | --- |
+| `WEREAD_API_KEY` | 你的微信读书 Gateway API Key，可前往 [微信读书助手](https://weread.qq.com/r/weread-skills) 获取 |
+| `NOTION_TOKEN` | 第二步创建的 `WeRead2Notion-AI` Integration Secret |
+| `NOTION_PAGE` | 第一步 Duplicate 后的新 Notion 页面完整 URL |
 
-先检查模板：
+Secret 名称必须完全一致，并注意以下对应关系：
 
-```bash
-weread2notion check
-```
+- `NOTION_TOKEN` 所属的 Integration 必须是你在页面 Connections 中添加的同一个 Integration。
+- `NOTION_PAGE` 必须是你自己的 Duplicate 页面，不能使用公共 Template 页面。
+- 不要把任何 Token 或 API Key 写进 README、代码或 `.env` 后提交到 GitHub。
 
-查看读取范围，不写入 Notion：
+### 第四步：测试同步
 
-```bash
-weread2notion sync --dry-run
-```
+1. 打开你 Fork 仓库的 `Actions` 页面。
+2. 在左侧选择 `weread sync`。
+3. 点击 `Run workflow`。
+4. 首次测试保持 `full` 未勾选。
+5. 再次点击绿色的 `Run workflow` 开始同步。
 
-日常同步：
+等待 `Sync` 任务显示绿色勾号后，刷新 Duplicate 后的 Notion 页面。你的书架、阅读进度、阅读时长、划线、笔记和统计数据将出现在模板中。
 
-```bash
-weread2notion sync
-```
+工作流还会每天自动运行一次。只有需要备份并重新生成全部数据库记录时，才使用 `full` 模式。
 
-安全重建全部数据：
+## 常见问题
 
-```bash
-weread2notion sync --full
-```
+### 提示 `Could not find block with ID`
 
-全量同步的顺序是：
+请检查：
 
-1. 读取并验证所有模板数据库。
-2. 将旧数据库行导出到 `backups/*.json`。
-3. 把旧行移入 Notion 回收站，不删除数据库和视图。
-4. 重建年、月、周、日。
-5. 重建作者、分类和书架。
-6. 重建章节、划线、个人想法及关联关系。
-7. 写入可用的阅读记录。
+- `NOTION_PAGE` 是否为 Duplicate 后的新页面 URL。
+- 页面右上角 `••• → Connections` 中是否已经添加 `WeRead2Notion-AI`。
+- GitHub 的 `NOTION_TOKEN` 是否属于该 Integration。
+- Integration 和 Notion 页面是否位于同一个 Workspace。
 
-> 微信读书目前只提供书签数量，不提供书签正文，因此书签不会伪装成划线导入。
+### 日志显示了其他 Integration 名称
 
-## GitHub Actions
+日志中的名称由 `NOTION_TOKEN` 决定，与 GitHub 仓库名称无关。请将 `NOTION_TOKEN` 替换为你自己创建的 `WeRead2Notion-AI` Integration Secret。
 
-在仓库 Secrets 中配置：
+### “全部”视图没有数据
 
-- `WEREAD_API_KEY`
-- `NOTION_TOKEN`
-- `NOTION_PAGE`
+确认你使用的是最新 Template，并检查 Actions 是否已成功完成。不要在“全部”视图中添加空的年份筛选。
 
-工作流每天自动运行，也可以在 Actions 页面手动选择普通同步或全量同步。全量同步产生的
-JSON 备份会作为 workflow artifact 上传。
+### “阅读时长格式化”显示“还未阅读”
 
-## 开发
+请确认仓库已经同步到最新版本，然后重新运行一次 Actions。同步器会使用微信读书返回的累计阅读时长更新该字段。
 
-```bash
-pip install -e '.[test]'
-pytest
-```
+## 更多文档
 
-代码结构：
-
-- `weread.py`：Gateway API、分页和升级提示处理
-- `notion.py`：模板发现、Schema 适配、行级写入与备份
-- `normalize.py`：时间、状态和书架条目标准化
-- `sync.py`：按关系依赖执行同步
-- `cli.py`：`check`、`sync`、`--dry-run`、`--full`
-
-## 安全说明
-
-不要把 API Key、Notion Token 或 `.env` 提交到 Git。全量同步的 JSON 备份可能包含你的
-书名、划线和笔记，也应作为私密数据保存。
+- [技术文档与本地运行说明](docs/TECHNICAL.md)
+- [微信读书助手](https://weread.qq.com/r/weread-skills)
 
 ## License
 
