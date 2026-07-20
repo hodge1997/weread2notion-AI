@@ -276,7 +276,12 @@ class Synchronizer:
                 "阅读状态": progress_status(progress)
                 if bundle
                 else ("在读" if timestamp else "想读"),
-                "阅读时长": progress.get("recordReadingTime") or 0,
+                # /book/getprogress exposes the accumulated text-reading duration
+                # as readingTime (seconds). recordReadingTime is a different metric
+                # and is commonly zero even for books with substantial progress.
+                "阅读时长": progress.get("readingTime")
+                or progress.get("recordReadingTime")
+                or 0,
                 "阅读进度": int(progress.get("progress") or 0) / 100,
                 "开始阅读时间": iso_date(progress.get("beginReadingDate")),
                 "最后阅读时间": iso_date(timestamp),
