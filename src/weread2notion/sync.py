@@ -17,6 +17,7 @@ BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
 TAG_ICON = "https://www.notion.so/icons/tag_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
+SYNC_VERSION = 2
 
 
 class Synchronizer:
@@ -72,6 +73,7 @@ class Synchronizer:
             for book_id, entry in entry_by_id.items()
             if full
             or book_id not in existing
+            or int(existing[book_id].get("sync_version") or 0) < SYNC_VERSION
             or int(entry.get("sort") or entry.get("readUpdateTime") or 0)
             > int(existing[book_id].get("sort") or 0)
         }
@@ -261,6 +263,22 @@ class Synchronizer:
                 or entry.get("sort")
             )
             relations = period_keys(timestamp) if timestamp else {}
+            chapter_uid = str(progress.get("chapterUid") or "")
+            current_chapter = next(
+                (
+                    chapter.get("title")
+                    for chapter in (bundle.get("chapters") or [])
+                    if str(chapter.get("chapterUid") or "") == chapter_uid
+                ),
+                "",
+            )
+            content_type = {
+                "book": "电子书",
+                "album": "有声书",
+                "mp": "文章收藏",
+            }.get(entry.get("kind"), "电子书")
+            publish_time = info.get("publishTime")
+            publish_date = str(publish_time)[:10] if publish_time else None
             raw = {
                 self.notion.titles["书架"]: info.get("title")
                 or entry.get("title")
@@ -269,8 +287,21 @@ class Synchronizer:
                 "ISBN": info.get("isbn") or "",
                 "Sort": entry.get("sort") or timestamp or 0,
                 "评分": info.get("newRating") or 0,
+                "评分人数": info.get("newRatingCount") or 0,
                 "链接": info.get("deepLink") or entry.get("deepLink"),
                 "简介": info.get("intro") or entry.get("intro") or "",
+                "出版社": info.get("publisher") or "",
+                "出版日期": publish_date,
+                "字数": info.get("wordCount") or 0,
+                "译者": info.get("translator") or "",
+                "内容类型": content_type,
+                "当前章节": current_chapter,
+                "听书时长": progress.get("ttsTime") or 0,
+                "私密阅读": bool(entry.get("secret")),
+                "置顶": bool(entry.get("isTop")),
+                "有声书集数": entry.get("trackCount") or 0,
+                "完结状态": entry.get("finishStatus") or "",
+                "同步版本": SYNC_VERSION,
                 "作者": [authors[author]] if author in authors else [],
                 "分类": [categories[name] for name in cat_names if name in categories],
                 "阅读状态": progress_status(progress)
@@ -283,7 +314,9 @@ class Synchronizer:
                 or progress.get("recordReadingTime")
                 or 0,
                 "阅读进度": int(progress.get("progress") or 0) / 100,
-                "开始阅读时间": iso_date(progress.get("beginReadingDate")),
+                "开始阅读时间": iso_date(
+                    progress.get("startReadingTime") or progress.get("beginReadingDate")
+                ),
                 "最后阅读时间": iso_date(timestamp),
                 "时间": iso_date(progress.get("finishTime") or timestamp),
             }

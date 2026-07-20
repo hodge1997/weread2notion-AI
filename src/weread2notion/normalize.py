@@ -62,6 +62,10 @@ def shelf_entries(shelf: dict[str, Any]) -> list[dict[str, Any]]:
                 "author": info.get("authorName") or "",
                 "cover": info.get("cover") or "",
                 "intro": info.get("intro") or "",
+                "trackCount": info.get("trackCount") or 0,
+                "finishStatus": info.get("finishStatus") or "",
+                "secret": extra.get("secret") or 0,
+                "isTop": extra.get("isTop") or 0,
                 "readUpdateTime": extra.get("lectureReadUpdateTime")
                 or info.get("updateTime"),
                 "category": "有声书",
@@ -80,6 +84,8 @@ def shelf_entries(shelf: dict[str, Any]) -> list[dict[str, Any]]:
                 "title": book.get("title") or "文章收藏",
                 "cover": book.get("cover") or "",
                 "category": "文章收藏",
+                "secret": 1,
+                "isTop": book.get("isTop") or 0,
                 "readUpdateTime": book.get("readUpdateTime") or book.get("updateTime"),
                 "sort": book.get("readUpdateTime") or book.get("updateTime") or 0,
             }

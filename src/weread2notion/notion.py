@@ -248,6 +248,8 @@ class NotionWorkspace:
                 result[str(book_id)] = {
                     "page_id": row["id"],
                     "sort": self.plain_property(properties.get("Sort")) or 0,
+                    "sync_version": self.plain_property(properties.get("同步版本"))
+                    or 0,
                 }
         return result
 
