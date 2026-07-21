@@ -63,6 +63,8 @@ Secret 名称必须完全一致，并注意以下对应关系：
 
 等待 `Sync` 任务显示绿色勾号后，刷新 Duplicate 后的 Notion 页面。你的书架、阅读进度、阅读时长和统计数据将出现在模板中；划线和笔记会按章节写入对应书籍的正文。
 
+微信读书当前书架是同步范围的唯一依据。书籍从微信读书书架移除后，下一次成功同步会将它在 Notion 中的书籍页面、章节、划线和笔记移入回收站。
+
 工作流还会每天自动运行一次。只有需要备份并重新生成全部数据库记录时，才使用 `full` 模式。
 
 ## 常见问题
@@ -92,6 +94,7 @@ Secret 名称必须完全一致，并注意以下对应关系：
 
 - [技术文档与本地运行说明](docs/TECHNICAL.md)
 - [微信读书助手](https://weread.qq.com/r/weread-skills)
+- [提交问题或功能建议](https://github.com/hodgekou/weread2notion-AI/issues/new/choose)
 
 ## AI 生成声明
 

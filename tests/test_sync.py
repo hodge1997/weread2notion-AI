@@ -13,7 +13,9 @@ class Notion:
     def __init__(self):
         self.rows = []
         self.requests = []
+        self.archived = []
         self.indexes = {}
+        self.sources = {}
         self.schemas = {
             name: {"时长": "number", "时长（分钟）": "number"}
             for name in ("日", "周", "月", "年", "阅读记录")
@@ -50,7 +52,8 @@ class Notion:
         return value
 
     def archive_rows(self, *args, **kwargs):
-        return None
+        self.archived.append((args, kwargs))
+        return 1
 
     def create(self, database, raw, icon):
         self.rows.append((database, raw))
@@ -283,3 +286,50 @@ def test_book_content_is_grouped_by_chapter():
     assert blocks[0]["type"] == "table_of_contents"
     assert blocks[1]["heading_2"]["rich_text"][0]["text"]["content"] == "第一章"
     assert blocks[2]["callout"]["rich_text"][0]["text"]["content"] == "一条划线"
+
+
+def test_plan_uses_shelf_as_authoritative_source():
+    class Weread:
+        def shelf(self):
+            return {"books": [{"bookId": "on-shelf", "title": "书架中的书"}]}
+
+        def notebooks(self):
+            return (
+                [
+                    {"bookId": "on-shelf", "sort": 2},
+                    {"bookId": "removed", "sort": 3},
+                ],
+                {"books": 2, "notes": 1},
+            )
+
+    plan = Synchronizer(Weread(), Notion()).plan()
+    assert plan["book_ids"] == ["on-shelf"]
+    assert [entry["bookId"] for entry in plan["entries"]] == ["on-shelf"]
+
+
+def test_removed_book_and_related_rows_are_moved_to_trash():
+    notion = Notion()
+    notion.sources = {"笔记": "notes", "划线": "marks", "章节": "chapters"}
+    notion.schemas.update(
+        {
+            "笔记": {"书籍": "relation"},
+            "划线": {"书籍": "relation"},
+            "章节": {"书籍": "relation"},
+        }
+    )
+    sync = Synchronizer(None, notion)
+    sync.delete_removed_books(
+        {"removed"}, {"removed": {"page_id": "book-page"}}
+    )
+
+    assert [call[0] for call in notion.archived] == [
+        ("笔记", ("书籍", "book-page")),
+        ("划线", ("书籍", "book-page")),
+        ("章节", ("书籍", "book-page")),
+    ]
+    assert notion.requests[-1][0] == (
+        "pages/book-page",
+        "PATCH",
+        {"in_trash": True},
+    )
+    assert sync.counts["删除书架"] == 1

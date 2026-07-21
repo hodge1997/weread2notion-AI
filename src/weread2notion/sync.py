@@ -32,8 +32,10 @@ class Synchronizer:
         shelf = self.weread.shelf()
         notebooks, totals = self.weread.notebooks()
         entries = shelf_entries(shelf)
+        # /shelf/sync is the authoritative source for current membership.
+        # /user/notebooks also returns historical books that have been removed
+        # from the shelf, so notebook IDs must never expand the sync set.
         ids = {item.get("bookId") for item in entries if item.get("kind") == "book"}
-        ids.update(item.get("bookId") for item in notebooks)
         return {
             "shelf": shelf,
             "notebooks": notebooks,
@@ -55,19 +57,14 @@ class Synchronizer:
         for notebook in plan["notebooks"]:
             book = notebook.get("book") or notebook
             book_id = notebook.get("bookId") or book.get("bookId")
-            if book_id and book_id not in entry_by_id:
-                entry_by_id[book_id] = {
-                    "kind": "book",
-                    **book,
-                    "sort": notebook.get("sort", 0),
-                }
-            elif book_id:
+            if book_id in entry_by_id:
                 entry_by_id[book_id]["sort"] = max(
                     int(entry_by_id[book_id].get("sort") or 0),
                     int(notebook.get("sort") or 0),
                 )
 
         existing = {} if full else self.notion.book_index()
+        removed_ids = set(existing) - set(entry_by_id)
         changed_ids = {
             book_id
             for book_id, entry in entry_by_id.items()
@@ -82,6 +79,7 @@ class Synchronizer:
         }
 
         days, stats = self.weread.reading_days(self.start_year)
+
         bundles = {}
         electronic_ids = [
             book_id
@@ -93,6 +91,13 @@ class Synchronizer:
             bundles[book_id] = self.weread.book_bundle(book_id)
 
         # Only start destructive work after every WeRead request has succeeded.
+        # A transient upstream failure must never make the current shelf appear
+        # empty and remove valid Notion pages.
+        if not full:
+            self.delete_removed_books(removed_ids, existing)
+            for book_id in removed_ids:
+                existing.pop(book_id, None)
+
         if full:
             data_databases = [
                 name
@@ -158,6 +163,27 @@ class Synchronizer:
             (stats.get("overall") or {}).get("totalReadTime") or 0
         )
         return dict(self.counts)
+
+    def delete_removed_books(self, removed_ids, existing) -> None:
+        """Move books absent from /shelf/sync and their generated data to trash."""
+        for book_id in sorted(removed_ids):
+            page_id = existing[book_id]["page_id"]
+            for database in ("笔记", "划线", "章节"):
+                if database not in self.notion.sources:
+                    continue
+                # Current and legacy templates relate these rows to 书架 through
+                # a property named 书籍. Skip unknown schemas instead of risking
+                # an unfiltered archive of an entire database.
+                if self.notion.schemas.get(database, {}).get("书籍") != "relation":
+                    continue
+                count = self.notion.archive_rows(database, ("书籍", page_id))
+                self.counts[f"删除{database}"] += int(count or 0)
+            # Highlights and reviews in current templates live inside the book
+            # page's generated block, so trashing the page removes them too.
+            self.notion.request(
+                f"pages/{page_id}", "PATCH", {"in_trash": True}
+            )
+            self.counts["删除书架"] += 1
 
     def sync_periods(
         self,
