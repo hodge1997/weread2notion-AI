@@ -14,6 +14,10 @@ class Notion:
         self.rows = []
         self.requests = []
         self.indexes = {}
+        self.schemas = {
+            name: {"时长": "number", "时长（分钟）": "number"}
+            for name in ("日", "周", "月", "年", "阅读记录")
+        }
 
     def upsert(
         self,
@@ -207,6 +211,25 @@ def test_unchanged_periods_do_not_write_pages():
     assert maps["day"]["2023-08-06"] == "day-page"
     assert notion.rows == []
     assert notion.requests == []
+
+
+def test_rollup_period_metrics_are_not_patched():
+    notion = Notion()
+    notion.schemas["月"] = {"时长": "rollup"}
+    notion.indexes = {
+        "月": {
+            "2023-08": {
+                "page_id": "month-page",
+                "properties": {"时长": {"type": "rollup", "rollup": {}}},
+            }
+        }
+    }
+    sync = Synchronizer(None, notion)
+    sync.sync_periods([{"timestamp": 1691251200, "duration": 600}], full=False)
+    month_updates = [
+        request for request in notion.requests if request[0][0] == "pages/month-page"
+    ]
+    assert month_updates == []
 
 
 def test_existing_people_and_categories_are_reused_without_writes():

@@ -231,23 +231,24 @@ class Synchronizer:
             row = existing[kind].get(key)
             if row:
                 page_id = row["page_id"]
-                old_duration = self.notion.plain_property(row["properties"].get("时长"))
-                old_minutes = self.notion.plain_property(
-                    row["properties"].get("时长（分钟）")
+                schema = self.notion.schemas.get(database, {})
+                metrics = {
+                    name: value
+                    for name, value in {
+                        "时长": duration,
+                        "时长（分钟）": duration / 60,
+                    }.items()
+                    if schema.get(name) == "number"
+                }
+                metrics_changed = any(
+                    self.notion.plain_property(row["properties"].get(name)) != value
+                    for name, value in metrics.items()
                 )
-                if old_duration != duration or old_minutes != duration / 60:
+                if metrics_changed:
                     self.notion.request(
                         f"pages/{page_id}",
                         "PATCH",
-                        {
-                            "properties": self.notion.properties(
-                                database,
-                                {
-                                    "时长": duration,
-                                    "时长（分钟）": duration / 60,
-                                },
-                            )
-                        },
+                        {"properties": self.notion.properties(database, metrics)},
                     )
                     self.counts[database] += 1
                     if kind == "day":
