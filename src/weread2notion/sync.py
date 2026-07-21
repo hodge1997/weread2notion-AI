@@ -205,6 +205,7 @@ class Synchronizer:
                     "end": end.isoformat() if end != start else None,
                 },
                 "时长": duration,
+                "时长（分钟）": duration / 60,
             }
             if kind == "day":
                 timestamp = next(
@@ -310,6 +311,11 @@ class Synchronizer:
             }.get(entry.get("kind"), "电子书")
             publish_time = info.get("publishTime")
             publish_date = str(publish_time)[:10] if publish_time else None
+            reading_time = (
+                progress.get("readingTime")
+                or progress.get("recordReadingTime")
+                or 0
+            )
             raw = {
                 self.notion.titles["书架"]: info.get("title")
                 or entry.get("title")
@@ -342,9 +348,8 @@ class Synchronizer:
                 # /book/getprogress exposes the accumulated text-reading duration
                 # as readingTime (seconds). recordReadingTime is a different metric
                 # and is commonly zero even for books with substantial progress.
-                "阅读时长": progress.get("readingTime")
-                or progress.get("recordReadingTime")
-                or 0,
+                "阅读时长": reading_time,
+                "阅读时长（分钟）": reading_time / 60,
                 "阅读进度": int(progress.get("progress") or 0) / 100,
                 "开始阅读时间": iso_date(
                     progress.get("startReadingTime") or progress.get("beginReadingDate")
@@ -461,6 +466,7 @@ class Synchronizer:
                 "日期": keys["day"],
                 "Date": keys["day"],
                 "时长": row["duration"],
+                "时长（分钟）": row["duration"] / 60,
                 "时间戳": row["timestamp"],
             }
             self.notion.upsert(database, "时间戳", row["timestamp"], raw, TARGET_ICON)

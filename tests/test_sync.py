@@ -45,6 +45,8 @@ def test_period_rows_have_valid_date_ranges():
     assert ranges["周"] == {"start": "2023-07-31", "end": "2023-08-06"}
     assert ranges["月"] == {"start": "2023-08-01", "end": "2023-08-31"}
     assert ranges["年"] == {"start": "2023-01-01", "end": "2023-12-31"}
+    day = next(raw for database, raw in notion.rows if database == "日")
+    assert day["时长（分钟）"] == 10
 
 
 def test_book_sync_uses_accumulated_reading_time():
@@ -70,6 +72,7 @@ def test_book_sync_uses_accumulated_reading_time():
     )
     book = next(raw for database, raw in notion.rows if database == "书架")
     assert book["阅读时长"] == 3206
+    assert book["阅读时长（分钟）"] == 3206 / 60
     assert "同步版本" not in book
 
 
