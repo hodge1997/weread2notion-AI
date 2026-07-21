@@ -309,12 +309,11 @@ def test_plan_uses_shelf_as_authoritative_source():
 
 def test_removed_book_and_related_rows_are_moved_to_trash():
     notion = Notion()
-    notion.sources = {"笔记": "notes", "划线": "marks", "章节": "chapters"}
+    notion.sources = {"笔记": "notes", "划线": "marks"}
     notion.schemas.update(
         {
             "笔记": {"书籍": "relation"},
             "划线": {"书籍": "relation"},
-            "章节": {"书籍": "relation"},
         }
     )
     sync = Synchronizer(None, notion)
@@ -325,7 +324,6 @@ def test_removed_book_and_related_rows_are_moved_to_trash():
     assert [call[0] for call in notion.archived] == [
         ("笔记", ("书籍", "book-page")),
         ("划线", ("书籍", "book-page")),
-        ("章节", ("书籍", "book-page")),
     ]
     assert notion.requests[-1][0] == (
         "pages/book-page",

@@ -14,7 +14,6 @@ from .blocks import get_callout, get_heading, get_table_of_contents
 
 
 BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
-TAG_ICON = "https://www.notion.so/icons/tag_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
 SYNC_VERSION = 7
@@ -111,7 +110,6 @@ class Synchronizer:
                     "年",
                     "分类",
                     "作者",
-                    "章节",
                     "阅读记录",
                     "阅读记录1",
                     "阅读记录2",
@@ -168,7 +166,7 @@ class Synchronizer:
         """Move books absent from /shelf/sync and their generated data to trash."""
         for book_id in sorted(removed_ids):
             page_id = existing[book_id]["page_id"]
-            for database in ("笔记", "划线", "章节"):
+            for database in ("笔记", "划线"):
                 if database not in self.notion.sources:
                     continue
                 # Current and legacy templates relate these rows to 书架 through
@@ -454,21 +452,6 @@ class Synchronizer:
             page_id = books.get(book_id)
             if not page_id:
                 continue
-            self.notion.archive_rows("章节", ("书籍", page_id))
-            for chapter in bundle["chapters"]:
-                raw = {
-                    self.notion.titles["章节"]: chapter.get("title")
-                    or f"章节 {chapter.get('chapterIdx', '')}",
-                    "chapterUid": chapter.get("chapterUid"),
-                    "chapterIdx": chapter.get("chapterIdx"),
-                    "level": chapter.get("level"),
-                    "readAhead": chapter.get("readAhead"),
-                    "updateTime": chapter.get("updateTime"),
-                    "blockId": chapter.get("blockId"),
-                    "书籍": [page_id],
-                }
-                self.notion.create("章节", raw, TAG_ICON)
-                self.counts["章节"] += 1
             # Highlights and reviews are rendered directly into the book body.
             # Do not create one Notion page/relation tag per item.
             self.counts["正文划线"] += len(bundle.get("highlights") or [])

@@ -17,7 +17,6 @@ REQUIRED_DATABASES = (
     "年",
     "分类",
     "作者",
-    "章节",
 )
 
 
