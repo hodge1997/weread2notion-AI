@@ -29,7 +29,7 @@
 6. 保存并复制生成的 Internal Integration Secret，后面将它配置为 `NOTION_TOKEN`。
 7. 返回 Duplicate 后的 Notion 页面，点击右上角 `••• → Connections`，添加 `WeRead2Notion-AI`。
 
-Integration 必须连接到最外层的“微信读书”模板页面，这样才能访问页面内的书架、笔记、划线和统计数据库。
+Integration 必须连接到最外层的“微信读书”模板页面，这样才能访问页面内的书架、章节和统计数据库。
 
 ### 第三步：Fork 项目并配置 Secrets
 
@@ -61,7 +61,7 @@ Secret 名称必须完全一致，并注意以下对应关系：
 4. 首次测试保持 `full` 未勾选。
 5. 再次点击绿色的 `Run workflow` 开始同步。
 
-等待 `Sync` 任务显示绿色勾号后，刷新 Duplicate 后的 Notion 页面。你的书架、阅读进度、阅读时长、划线、笔记和统计数据将出现在模板中。
+等待 `Sync` 任务显示绿色勾号后，刷新 Duplicate 后的 Notion 页面。你的书架、阅读进度、阅读时长和统计数据将出现在模板中；划线和笔记会按章节写入对应书籍的正文。
 
 工作流还会每天自动运行一次。只有需要备份并重新生成全部数据库记录时，才使用 `full` 模式。
 

@@ -6,7 +6,6 @@ from typing import Any
 
 from .normalize import (
     iso_date,
-    iso_datetime,
     period_keys,
     progress_status,
     shelf_entries,
@@ -18,7 +17,7 @@ BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
 TAG_ICON = "https://www.notion.so/icons/tag_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
-SYNC_VERSION = 5
+SYNC_VERSION = 7
 
 
 class Synchronizer:
@@ -368,27 +367,12 @@ class Synchronizer:
             self.counts["书架"] += 1
         return result
 
-    def dated_relations(self, timestamp, book_id, books, periods):
-        raw = {"书籍": [books[book_id]]} if book_id in books else {}
-        if timestamp:
-            keys = period_keys(timestamp)
-            for kind, prop in (
-                ("day", "日"),
-                ("week", "周"),
-                ("month", "月"),
-                ("year", "年"),
-            ):
-                if keys[kind] in periods[kind]:
-                    raw[prop] = [periods[kind][keys[kind]]]
-        return raw
-
     def sync_book_content(self, bundles, books, periods):
         for book_id, bundle in bundles.items():
             page_id = books.get(book_id)
             if not page_id:
                 continue
-            for database in ("章节", "划线", "笔记"):
-                self.notion.archive_rows(database, ("书籍", page_id))
+            self.notion.archive_rows("章节", ("书籍", page_id))
             for chapter in bundle["chapters"]:
                 raw = {
                     self.notion.titles["章节"]: chapter.get("title")
@@ -403,48 +387,10 @@ class Synchronizer:
                 }
                 self.notion.create("章节", raw, TAG_ICON)
                 self.counts["章节"] += 1
-            for mark in bundle["highlights"]:
-                timestamp = mark.get("createTime")
-                raw = {
-                    self.notion.titles["划线"]: mark.get("markText") or "划线",
-                    "bookId": book_id,
-                    "bookmarkId": mark.get("bookmarkId"),
-                    "blockId": mark.get("blockId"),
-                    "range": mark.get("range"),
-                    "chapterUid": mark.get("chapterUid"),
-                    "bookVersion": mark.get("bookVersion"),
-                    "colorStyle": mark.get("colorStyle"),
-                    "type": mark.get("type"),
-                    "style": mark.get("style"),
-                    "Date": iso_datetime(timestamp),
-                    **self.dated_relations(timestamp, book_id, books, periods),
-                }
-                self.notion.upsert(
-                    "划线", "bookmarkId", mark.get("bookmarkId"), raw, BOOK_ICON
-                )
-                self.counts["划线"] += 1
-            for review in bundle["reviews"]:
-                timestamp = review.get("createTime")
-                raw = {
-                    self.notion.titles["笔记"]: review.get("content")
-                    or review.get("abstract")
-                    or "想法",
-                    "bookId": book_id,
-                    "reviewId": review.get("reviewId"),
-                    "blockId": review.get("blockId"),
-                    "range": review.get("range"),
-                    "abstract": review.get("abstract"),
-                    "chapterUid": review.get("chapterUid"),
-                    "bookVersion": review.get("bookVersion"),
-                    "type": review.get("type"),
-                    "star": review.get("star"),
-                    "Date": iso_datetime(timestamp),
-                    **self.dated_relations(timestamp, book_id, books, periods),
-                }
-                self.notion.upsert(
-                    "笔记", "reviewId", review.get("reviewId"), raw, TAG_ICON
-                )
-                self.counts["笔记"] += 1
+            # Highlights and reviews are rendered directly into the book body.
+            # Do not create one Notion page/relation tag per item.
+            self.counts["正文划线"] += len(bundle.get("highlights") or [])
+            self.counts["正文笔记"] += len(bundle.get("reviews") or [])
             self.notion.replace_generated_book_content(
                 page_id, self.book_content_blocks(bundle)
             )

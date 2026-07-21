@@ -91,7 +91,7 @@ def test_sync_version_is_marked_only_after_book_content():
     assert notion.requests[-1][0] == (
         "pages/page-1",
         "PATCH",
-        {"properties": {"同步版本": 5}},
+        {"properties": {"同步版本": 7}},
     )
 
 

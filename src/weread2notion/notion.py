@@ -11,8 +11,6 @@ from notion_client import Client
 
 REQUIRED_DATABASES = (
     "书架",
-    "笔记",
-    "划线",
     "日",
     "周",
     "月",
