@@ -13,10 +13,20 @@ class Notion:
     def __init__(self):
         self.rows = []
         self.requests = []
+        self.indexes = {}
 
-    def upsert(self, database, key_name, key_value, raw, icon, cover=None):
+    def upsert(
+        self,
+        database,
+        key_name,
+        key_value,
+        raw,
+        icon,
+        cover=None,
+        existing_id=None,
+    ):
         self.rows.append((database, raw))
-        return f"{database}:{key_value}"
+        return existing_id or f"{database}:{key_value}"
 
     def request(self, *args, **kwargs):
         self.requests.append((args, kwargs))
@@ -24,6 +34,16 @@ class Notion:
 
     def properties(self, database, raw):
         return raw
+
+    def row_index(self, database, key_name):
+        return self.indexes.get(database, {})
+
+    @staticmethod
+    def plain_property(prop):
+        if not prop:
+            return None
+        value = prop.get(prop.get("type"))
+        return value
 
     def archive_rows(self, *args, **kwargs):
         return None
@@ -139,6 +159,94 @@ def test_periods_include_zero_duration_book_dates():
     maps = sync.sync_periods([], [1784563200])
     assert "2026" in maps["year"]
     assert "2026-07" in maps["month"]
+
+
+def test_unchanged_periods_do_not_write_pages():
+    notion = Notion()
+    timestamp = 1691251200
+    notion.indexes = {
+        "日": {
+            "2023-08-06": {
+                "page_id": "day-page",
+                "properties": {
+                    "时长": {"type": "number", "number": 600},
+                    "时长（分钟）": {"type": "number", "number": 10},
+                },
+            }
+        },
+        "周": {
+            "2023-07-31": {
+                "page_id": "week-page",
+                "properties": {
+                    "时长": {"type": "number", "number": 600},
+                    "时长（分钟）": {"type": "number", "number": 10},
+                },
+            }
+        },
+        "月": {
+            "2023-08": {
+                "page_id": "month-page",
+                "properties": {
+                    "时长": {"type": "number", "number": 600},
+                    "时长（分钟）": {"type": "number", "number": 10},
+                },
+            }
+        },
+        "年": {
+            "2023": {
+                "page_id": "year-page",
+                "properties": {
+                    "时长": {"type": "number", "number": 600},
+                    "时长（分钟）": {"type": "number", "number": 10},
+                },
+            }
+        },
+    }
+    sync = Synchronizer(None, notion)
+    maps = sync.sync_periods([{"timestamp": timestamp, "duration": 600}])
+    assert maps["day"]["2023-08-06"] == "day-page"
+    assert notion.rows == []
+    assert notion.requests == []
+
+
+def test_existing_people_and_categories_are_reused_without_writes():
+    notion = Notion()
+    notion.titles.update({"作者": "姓名", "分类": "名称"})
+    notion.indexes = {
+        "作者": {"作者甲": {"page_id": "author-page", "properties": {}}},
+        "分类": {"分类甲": {"page_id": "category-page", "properties": {}}},
+    }
+    sync = Synchronizer(None, notion)
+    authors, categories = sync.sync_people_and_categories(
+        [{"author": "作者甲", "category": "分类甲"}], {}
+    )
+    assert authors == {"作者甲": "author-page"}
+    assert categories == {"分类甲": "category-page"}
+    assert notion.rows == []
+
+
+def test_unchanged_reading_records_do_not_write_pages():
+    notion = Notion()
+    notion.titles["阅读记录"] = "标题"
+    notion.sources = {"阅读记录": "source"}
+    notion.indexes = {
+        "阅读记录": {
+            "1691251200": {
+                "page_id": "record-page",
+                "properties": {
+                    "时长": {"type": "number", "number": 600},
+                    "时长（分钟）": {"type": "number", "number": 10},
+                },
+            }
+        }
+    }
+    sync = Synchronizer(None, notion)
+    sync.sync_reading_records(
+        [{"timestamp": 1691251200, "duration": 600}],
+        {"day": {}, "week": {}, "month": {}, "year": {}},
+    )
+    assert notion.rows == []
+    assert notion.requests == []
 
 
 def test_book_content_is_grouped_by_chapter():

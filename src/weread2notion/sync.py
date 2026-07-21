@@ -73,7 +73,10 @@ class Synchronizer:
             for book_id, entry in entry_by_id.items()
             if full
             or book_id not in existing
-            or int(existing[book_id].get("sync_version") or 0) < SYNC_VERSION
+            or (
+                entry.get("kind") == "book"
+                and int(existing[book_id].get("sync_version") or 0) < SYNC_VERSION
+            )
             or int(entry.get("sort") or entry.get("readUpdateTime") or 0)
             > int(existing[book_id].get("sort") or 0)
         }
@@ -135,10 +138,10 @@ class Synchronizer:
                 if item.get("createTime"):
                     related_timestamps.append(int(item["createTime"]))
 
-        periods = self.sync_periods(days, related_timestamps)
+        periods = self.sync_periods(days, related_timestamps, full=full)
 
         authors, categories = self.sync_people_and_categories(
-            entry_by_id.values(), bundles
+            entry_by_id.values(), bundles, full=full
         )
         books = self.sync_books(
             entry_by_id,
@@ -150,7 +153,7 @@ class Synchronizer:
             existing,
         )
         self.sync_book_content(bundles, books, periods)
-        self.sync_reading_records(days, periods)
+        self.sync_reading_records(days, periods, full=full)
         self.counts["reading_seconds"] = int(
             (stats.get("overall") or {}).get("totalReadTime") or 0
         )
@@ -160,6 +163,7 @@ class Synchronizer:
         self,
         days: list[dict[str, Any]],
         related_timestamps: list[int] | None = None,
+        full: bool = False,
     ) -> dict[str, dict[str, str]]:
         maps = {"day": {}, "week": {}, "month": {}, "year": {}}
         durations = defaultdict(int)
@@ -177,6 +181,15 @@ class Synchronizer:
             for kind in maps:
                 durations[(kind, keys[kind])] += int(row["duration"])
         db_names = {"day": "日", "week": "周", "month": "月", "year": "年"}
+        existing = {
+            kind: (
+                {}
+                if full
+                else self.notion.row_index(database, self.notion.titles[database])
+            )
+            for kind, database in db_names.items()
+        }
+        changed_periods = {kind: set() for kind in maps}
         for (kind, key), duration in sorted(durations.items()):
             if kind == "year":
                 start = date(int(key), 1, 1)
@@ -214,17 +227,40 @@ class Synchronizer:
                     if period_keys(row["timestamp"])["day"] == key
                 )
                 raw["时间戳"] = timestamp
-            page_id = self.notion.upsert(
-                db_names[kind],
-                self.notion.titles[db_names[kind]],
-                key,
-                raw,
-                TARGET_ICON,
-            )
+            database = db_names[kind]
+            row = existing[kind].get(key)
+            if row:
+                page_id = row["page_id"]
+                old_duration = self.notion.plain_property(row["properties"].get("时长"))
+                old_minutes = self.notion.plain_property(
+                    row["properties"].get("时长（分钟）")
+                )
+                if old_duration != duration or old_minutes != duration / 60:
+                    self.notion.request(
+                        f"pages/{page_id}",
+                        "PATCH",
+                        {
+                            "properties": self.notion.properties(
+                                database,
+                                {
+                                    "时长": duration,
+                                    "时长（分钟）": duration / 60,
+                                },
+                            )
+                        },
+                    )
+                    self.counts[database] += 1
+                    if kind == "day":
+                        changed_periods[kind].add(key)
+            else:
+                page_id = self.notion.create(database, raw, TARGET_ICON)
+                self.counts[database] += 1
+                changed_periods[kind].add(key)
             maps[kind][key] = page_id
-            self.counts[db_names[kind]] += 1
         for row in period_rows:
             keys = period_keys(row["timestamp"])
+            if not any(keys[kind] in changed_periods[kind] for kind in maps):
+                continue
             day_id = maps["day"][keys["day"]]
             raw = {
                 "年": [maps["year"][keys["year"]]],
@@ -238,7 +274,7 @@ class Synchronizer:
             )
         return maps
 
-    def sync_people_and_categories(self, entries, bundles):
+    def sync_people_and_categories(self, entries, bundles, full: bool = False):
         author_names, category_names = set(), set()
         for entry in entries:
             author_names.update(filter(None, [str(entry.get("author") or "").strip()]))
@@ -252,27 +288,32 @@ class Synchronizer:
                 for item in categories
             )
             category_names.update(filter(None, [info.get("category")]))
-        authors = {
-            name: self.notion.upsert(
-                "作者",
-                self.notion.titles["作者"],
-                name,
-                {self.notion.titles["作者"]: name},
-                USER_ICON,
-            )
-            for name in sorted(filter(None, author_names))
-        }
-        categories = {
-            name: self.notion.upsert(
-                "分类",
-                self.notion.titles["分类"],
-                name,
-                {self.notion.titles["分类"]: name},
-                TAG_ICON,
-            )
-            for name in sorted(filter(None, category_names))
-        }
-        self.counts["作者"], self.counts["分类"] = len(authors), len(categories)
+        existing_authors = (
+            {} if full else self.notion.row_index("作者", self.notion.titles["作者"])
+        )
+        existing_categories = (
+            {} if full else self.notion.row_index("分类", self.notion.titles["分类"])
+        )
+        authors = {}
+        for name in sorted(filter(None, author_names)):
+            row = existing_authors.get(name)
+            if row:
+                authors[name] = row["page_id"]
+            else:
+                authors[name] = self.notion.create(
+                    "作者", {self.notion.titles["作者"]: name}, USER_ICON
+                )
+                self.counts["作者"] += 1
+        categories = {}
+        for name in sorted(filter(None, category_names)):
+            row = existing_categories.get(name)
+            if row:
+                categories[name] = row["page_id"]
+            else:
+                categories[name] = self.notion.create(
+                    "分类", {self.notion.titles["分类"]: name}, TAG_ICON
+                )
+                self.counts["分类"] += 1
         return authors, categories
 
     def sync_books(
@@ -316,9 +357,7 @@ class Synchronizer:
             publish_time = info.get("publishTime")
             publish_date = str(publish_time)[:10] if publish_time else None
             reading_time = (
-                progress.get("readingTime")
-                or progress.get("recordReadingTime")
-                or 0
+                progress.get("readingTime") or progress.get("recordReadingTime") or 0
             )
             raw = {
                 self.notion.titles["书架"]: info.get("title")
@@ -372,7 +411,13 @@ class Synchronizer:
                     raw[prop] = [periods[kind][relations[kind]]]
             cover = info.get("cover") or entry.get("cover")
             result[book_id] = self.notion.upsert(
-                "书架", "BookId", book_id, raw, cover or BOOK_ICON, cover
+                "书架",
+                "BookId",
+                book_id,
+                raw,
+                cover or BOOK_ICON,
+                cover,
+                existing_id=(existing.get(book_id) or {}).get("page_id"),
             )
             self.counts["书架"] += 1
         return result
@@ -449,11 +494,14 @@ class Synchronizer:
                 else:
                     abstract = item.get("abstract") or ""
                     content = item.get("content") or ""
-                    text = "\n\n".join(part for part in (abstract, content) if part) or "想法"
+                    text = (
+                        "\n\n".join(part for part in (abstract, content) if part)
+                        or "想法"
+                    )
                     blocks.append(get_callout(text, "💭"))
         return blocks
 
-    def sync_reading_records(self, days, periods):
+    def sync_reading_records(self, days, periods, full: bool = False):
         database = next(
             (
                 name
@@ -464,6 +512,7 @@ class Synchronizer:
         )
         if not database:
             return
+        existing = {} if full else self.notion.row_index(database, "时间戳")
         for row in days:
             keys = period_keys(row["timestamp"])
             raw = {
@@ -474,5 +523,24 @@ class Synchronizer:
                 "时长（分钟）": row["duration"] / 60,
                 "时间戳": row["timestamp"],
             }
-            self.notion.upsert(database, "时间戳", row["timestamp"], raw, TARGET_ICON)
+            current = existing.get(str(row["timestamp"]))
+            if current:
+                old_duration = self.notion.plain_property(
+                    current["properties"].get("时长")
+                )
+                old_minutes = self.notion.plain_property(
+                    current["properties"].get("时长（分钟）")
+                )
+                if (
+                    old_duration == row["duration"]
+                    and old_minutes == row["duration"] / 60
+                ):
+                    continue
+                self.notion.request(
+                    f"pages/{current['page_id']}",
+                    "PATCH",
+                    {"properties": self.notion.properties(database, raw)},
+                )
+            else:
+                self.notion.create(database, raw, TARGET_ICON)
             self.counts[database] += 1

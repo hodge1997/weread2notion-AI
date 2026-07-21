@@ -185,9 +185,14 @@ class NotionWorkspace:
         raw: dict[str, Any],
         icon: str | None = None,
         cover: str | None = None,
+        existing_id: str | None = None,
     ) -> str:
         properties = self.properties(database, raw)
-        existing = self.find(database, key_name, key_value)
+        existing = (
+            {"id": existing_id}
+            if existing_id
+            else self.find(database, key_name, key_value)
+        )
         if existing:
             body: dict[str, Any] = {"properties": properties}
             if icon:
@@ -208,6 +213,22 @@ class NotionWorkspace:
         if cover:
             body["cover"] = {"type": "external", "external": {"url": cover}}
         return self.request("pages", "POST", body)["id"]
+
+    def row_index(self, database: str, key_name: str) -> dict[str, dict[str, Any]]:
+        """Load a database once and index rows by a stable property value."""
+        result = {}
+        for row in self.query_all(database):
+            properties = row.get("properties") or {}
+            key = self.plain_property(properties.get(key_name))
+            if key is None or key == "":
+                continue
+            if isinstance(key, float) and key.is_integer():
+                key = int(key)
+            result[str(key)] = {
+                "page_id": row["id"],
+                "properties": properties,
+            }
+        return result
 
     def create(
         self,
