@@ -115,7 +115,7 @@ def test_book_period_relations_use_finish_time_not_last_read_time():
         "year": {"2024": "year-2024", "2025": "year-2025"},
     }
     sync.sync_books(
-        {"book-1": {"title": "测试书籍"}},
+        {"book-1": {"title": "测试书籍", "finishReading": 1}},
         {
             "book-1": {
                 "info": {"title": "测试书籍"},
@@ -138,6 +138,27 @@ def test_book_period_relations_use_finish_time_not_last_read_time():
     assert book["年"] == ["year-2024"]
 
 
+def test_book_status_uses_explicit_shelf_finish_marker():
+    notion = Notion()
+    sync = Synchronizer(None, notion)
+    sync.sync_books(
+        {"book-1": {"title": "生死疲劳", "finishReading": 1}},
+        {
+            "book-1": {
+                "info": {"title": "生死疲劳"},
+                "progress": {"progress": 12, "readingTime": 600},
+            }
+        },
+        {},
+        {},
+        {"day": {}, "week": {}, "month": {}, "year": {}},
+        {"book-1"},
+        {},
+    )
+    book = next(raw for database, raw in notion.rows if database == "书架")
+    assert book["阅读状态"] == "已读"
+
+
 def test_sync_version_is_marked_only_after_book_content():
     notion = Notion()
     sync = Synchronizer(None, notion)
@@ -156,7 +177,7 @@ def test_sync_version_is_marked_only_after_book_content():
     assert notion.requests[-1][0] == (
         "pages/page-1",
         "PATCH",
-        {"properties": {"同步版本": 7}},
+        {"properties": {"同步版本": 8}},
     )
 
 

@@ -16,7 +16,7 @@ from .blocks import get_callout, get_heading, get_table_of_contents
 BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
-SYNC_VERSION = 7
+SYNC_VERSION = 8
 
 
 class Synchronizer:
@@ -360,7 +360,16 @@ class Synchronizer:
                 or entry.get("readUpdateTime")
                 or entry.get("sort")
             )
-            finish_timestamp = progress.get("finishTime")
+            finish_reading = bool(entry.get("finishReading"))
+            finish_timestamp = (
+                (
+                    progress.get("finishTime")
+                    or entry.get("readUpdateTime")
+                    or progress.get("updateTime")
+                )
+                if finish_reading
+                else None
+            )
             # Book period relations represent when the book was completed.
             # The last-read timestamp can change after completion and must not
             # move a finished book into a different day/month/year.
@@ -410,9 +419,9 @@ class Synchronizer:
                 "分类": [categories[name] for name in cat_names if name in categories],
                 # Shelf/update timestamps only prove that an item was added or
                 # changed. They do not prove that the user actually read it.
-                # Apply the same progress-based rule to books, albums and
-                # article collections so untouched items appear under 想读.
-                "阅读状态": progress_status(progress),
+                # The explicit WeRead shelf marker has priority over progress.
+                # A book is 已读 only when finishReading=1.
+                "阅读状态": progress_status(progress, finish_reading),
                 # /book/getprogress exposes the accumulated text-reading duration
                 # as readingTime (seconds). recordReadingTime is a different metric
                 # and is commonly zero even for books with substantial progress.

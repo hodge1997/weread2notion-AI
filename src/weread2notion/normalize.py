@@ -33,9 +33,12 @@ def period_keys(timestamp: int | float) -> dict[str, str]:
     }
 
 
-def progress_status(progress: dict[str, Any]) -> str:
+def progress_status(progress: dict[str, Any], finish_reading: bool = False) -> str:
     value = int(progress.get("progress") or 0)
-    if value >= 100 or progress.get("finishTime"):
+    # The user's explicit shelf marker is authoritative. Progress and
+    # finishTime can reach completion-like values without the book being
+    # marked as read in WeRead.
+    if finish_reading:
         return "已读"
     # updateTime may be present for books that were only added to the shelf, so
     # it must not be treated as evidence that reading has started.

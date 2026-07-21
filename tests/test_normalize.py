@@ -12,7 +12,12 @@ def test_shelf_entries_include_albums_and_mp():
 
 def test_progress_is_percentage_not_fraction():
     assert progress_status({"progress": 1}) == "在读"
-    assert progress_status({"progress": 100}) == "已读"
+    assert progress_status({"progress": 100}) == "在读"
+
+
+def test_explicit_finish_marker_is_authoritative():
+    assert progress_status({"progress": 5}, finish_reading=True) == "已读"
+    assert progress_status({"progress": 100}, finish_reading=False) == "在读"
 
 
 def test_shelf_timestamp_does_not_mark_unread_book_as_reading():
