@@ -56,8 +56,23 @@ class NotionWorkspace:
         self.titles: dict[str, str] = {}
 
     def request(self, path: str, method: str = "GET", body: dict | None = None) -> dict:
-        time.sleep(self.interval)
-        return self.client.request(path=path, method=method, body=body)
+        last_error = None
+        for attempt in range(5):
+            time.sleep(self.interval if attempt == 0 else min(2**attempt, 8))
+            try:
+                return self.client.request(path=path, method=method, body=body)
+            except Exception as exc:
+                last_error = exc
+                response = getattr(exc, "response", None)
+                status = getattr(exc, "status", None) or getattr(
+                    response, "status_code", None
+                )
+                # Notion occasionally returns transient 429/5xx responses
+                # during large syncs. Retry those, but surface validation and
+                # permission errors immediately.
+                if status != 429 and (status is None or status < 500):
+                    raise
+        raise last_error
 
     def list_children(self, block_id: str) -> list[dict[str, Any]]:
         rows, cursor = [], None
