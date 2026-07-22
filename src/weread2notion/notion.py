@@ -130,13 +130,15 @@ class NotionWorkspace:
                     "initial_data_source": {
                         "properties": {
                             "配置": {"title": {}},
-                            "已读进度显示为100%": {"checkbox": {}},
-                            "移出书架时删除": {"checkbox": {}},
+                            "阅读完成进度强制改为100%": {"checkbox": {}},
+                            "只同步我的书架书籍": {"checkbox": {}},
                             "同步划线和笔记": {"checkbox": {}},
                             "阅读统计起始年份": {
                                 "number": {"format": "number"}
                             },
-                            "已应用配置码": {"number": {"format": "number"}},
+                            "同步配置版本（不可删除）": {
+                                "number": {"format": "number"}
+                            },
                         }
                     },
                 },
@@ -148,11 +150,11 @@ class NotionWorkspace:
             self.sources[SETTINGS_DATABASE] = source_id
             self.schemas[SETTINGS_DATABASE] = {
                 "配置": "title",
-                "已读进度显示为100%": "checkbox",
-                "移出书架时删除": "checkbox",
+                "阅读完成进度强制改为100%": "checkbox",
+                "只同步我的书架书籍": "checkbox",
                 "同步划线和笔记": "checkbox",
                 "阅读统计起始年份": "number",
-                "已应用配置码": "number",
+                "同步配置版本（不可删除）": "number",
             }
             self.titles[SETTINGS_DATABASE] = "配置"
 
@@ -162,11 +164,11 @@ class NotionWorkspace:
                 SETTINGS_DATABASE,
                 {
                     "配置": SETTINGS_TITLE,
-                    "已读进度显示为100%": False,
-                    "移出书架时删除": True,
+                    "阅读完成进度强制改为100%": False,
+                    "只同步我的书架书籍": True,
                     "同步划线和笔记": True,
                     "阅读统计起始年份": default_start_year,
-                    "已应用配置码": 0,
+                    "同步配置版本（不可删除）": 0,
                 },
                 SETTINGS_ICON,
             )
@@ -191,7 +193,7 @@ class NotionWorkspace:
                             "type": "bulleted_list_item",
                             "bulleted_list_item": {
                                 "rich_text": text_value(
-                                    "已读进度显示为100%：只改变 Notion 展示，不修改微信读书真实进度。"
+                                    "阅读完成进度强制改为100%：只改变 Notion 展示，不修改微信读书真实进度。"
                                 )
                             },
                         },
@@ -209,7 +211,7 @@ class NotionWorkspace:
                             "type": "bulleted_list_item",
                             "bulleted_list_item": {
                                 "rich_text": text_value(
-                                    "已应用配置码：由系统维护的数字，请勿手动修改。"
+                                    "同步配置版本（不可删除）：由系统维护，请勿手动修改。"
                                 )
                             },
                         },
@@ -218,7 +220,7 @@ class NotionWorkspace:
                             "type": "bulleted_list_item",
                             "bulleted_list_item": {
                                 "rich_text": text_value(
-                                    "移出书架时删除：将书籍及自动同步内容移入 Notion 回收站。"
+                                    "只同步我的书架书籍：移除不在当前书架中的书籍及自动同步内容。"
                                 )
                             },
                         },
@@ -242,9 +244,20 @@ class NotionWorkspace:
             parsed = self.plain_property(properties.get(name))
             return default if parsed is None else parsed
 
+        def compatible_value(name: str, old_name: str, default: Any) -> Any:
+            if name in properties:
+                return value(name, default)
+            return value(old_name, default)
+
         settings = {
-            "completed_progress_100": bool(value("已读进度显示为100%", False)),
-            "delete_removed": bool(value("移出书架时删除", True)),
+            "completed_progress_100": bool(
+                compatible_value(
+                    "阅读完成进度强制改为100%", "已读进度显示为100%", False
+                )
+            ),
+            "delete_removed": bool(
+                compatible_value("只同步我的书架书籍", "移出书架时删除", True)
+            ),
             "sync_notes": bool(value("同步划线和笔记", True)),
             "start_year": int(value("阅读统计起始年份", default_start_year)),
         }
@@ -255,13 +268,22 @@ class NotionWorkspace:
             + int(settings["delete_removed"]) * 2
             + int(settings["sync_notes"]) * 4
         )
-        settings["settings_changed"] = value("已应用配置码", 0) != config_code
+        config_property = (
+            "同步配置版本（不可删除）"
+            if "同步配置版本（不可删除）" in properties
+            else "已应用配置码"
+        )
+        settings["settings_changed"] = value(config_property, 0) != config_code
         settings["_config_code"] = config_code
+        settings["_config_property"] = config_property
         settings["_page_id"] = rows[0].get("id") if rows else None
         return settings
 
     def mark_sync_settings_applied(
-        self, page_id: str | None, config_code: int
+        self,
+        page_id: str | None,
+        config_code: int,
+        config_property: str = "同步配置版本（不可删除）",
     ) -> None:
         if not page_id:
             return
@@ -270,7 +292,7 @@ class NotionWorkspace:
             "PATCH",
             {
                 "properties": self.properties(
-                    SETTINGS_DATABASE, {"已应用配置码": config_code}
+                    SETTINGS_DATABASE, {config_property: config_code}
                 )
             },
         )

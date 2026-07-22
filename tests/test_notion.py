@@ -95,11 +95,11 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
     notion.sources["设置"] = "settings-source"
     notion.schemas["设置"] = {
         "配置": "title",
-        "已读进度显示为100%": "checkbox",
-        "移出书架时删除": "checkbox",
+        "阅读完成进度强制改为100%": "checkbox",
+        "只同步我的书架书籍": "checkbox",
         "同步划线和笔记": "checkbox",
         "阅读统计起始年份": "number",
-        "已应用配置码": "number",
+        "同步配置版本（不可删除）": "number",
     }
     monkeypatch.setattr(
         notion,
@@ -107,11 +107,11 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
         lambda database: [
             {
                 "properties": {
-                    "已读进度显示为100%": {
+                    "阅读完成进度强制改为100%": {
                         "type": "checkbox",
                         "checkbox": True,
                     },
-                    "移出书架时删除": {
+                    "只同步我的书架书籍": {
                         "type": "checkbox",
                         "checkbox": False,
                     },
@@ -120,7 +120,10 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
                         "checkbox": True,
                     },
                     "阅读统计起始年份": {"type": "number", "number": 2025},
-                    "已应用配置码": {"type": "number", "number": 0},
+                    "同步配置版本（不可删除）": {
+                        "type": "number",
+                        "number": 0,
+                    },
                 }
             }
         ],
@@ -138,6 +141,48 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
         "start_year": 2025,
     }
     assert settings["settings_changed"] is True
+
+
+def test_legacy_sync_setting_names_remain_compatible(monkeypatch):
+    notion = NotionWorkspace("token", "page", "version", client=Client())
+    notion.sources["设置"] = "settings-source"
+    notion.schemas["设置"] = {
+        "配置": "title",
+        "已读进度显示为100%": "checkbox",
+        "移出书架时删除": "checkbox",
+        "同步划线和笔记": "checkbox",
+        "阅读统计起始年份": "number",
+        "已应用配置码": "number",
+    }
+    monkeypatch.setattr(
+        notion,
+        "query_all",
+        lambda database: [
+            {
+                "id": "settings-page",
+                "properties": {
+                    "已读进度显示为100%": {
+                        "type": "checkbox",
+                        "checkbox": True,
+                    },
+                    "移出书架时删除": {
+                        "type": "checkbox",
+                        "checkbox": False,
+                    },
+                    "同步划线和笔记": {
+                        "type": "checkbox",
+                        "checkbox": True,
+                    },
+                    "阅读统计起始年份": {"type": "number", "number": 2024},
+                    "已应用配置码": {"type": "number", "number": 0},
+                },
+            }
+        ],
+    )
+    settings = notion.ensure_sync_settings()
+    assert settings["completed_progress_100"] is True
+    assert settings["delete_removed"] is False
+    assert settings["_config_property"] == "已应用配置码"
 
 
 def test_missing_sync_settings_database_is_created(monkeypatch):
@@ -160,13 +205,13 @@ def test_missing_sync_settings_database_is_created(monkeypatch):
         rows.append(
             {
                 "properties": {
-                    "已读进度显示为100%": {
+                    "阅读完成进度强制改为100%": {
                         "type": "checkbox",
-                        "checkbox": raw["已读进度显示为100%"],
+                        "checkbox": raw["阅读完成进度强制改为100%"],
                     },
-                    "移出书架时删除": {
+                    "只同步我的书架书籍": {
                         "type": "checkbox",
-                        "checkbox": raw["移出书架时删除"],
+                        "checkbox": raw["只同步我的书架书籍"],
                     },
                     "同步划线和笔记": {
                         "type": "checkbox",
@@ -176,9 +221,9 @@ def test_missing_sync_settings_database_is_created(monkeypatch):
                         "type": "number",
                         "number": raw["阅读统计起始年份"],
                     },
-                    "已应用配置码": {
+                    "同步配置版本（不可删除）": {
                         "type": "number",
-                        "number": raw["已应用配置码"],
+                        "number": raw["同步配置版本（不可删除）"],
                     },
                 }
             }

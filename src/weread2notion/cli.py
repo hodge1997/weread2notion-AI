@@ -66,7 +66,9 @@ def main(argv=None) -> None:
             backup_dir=settings.backup_dir,
         )
         notion.mark_sync_settings_applied(
-            preferences.get("_page_id"), preferences.get("_config_code", 0)
+            preferences.get("_page_id"),
+            preferences.get("_config_code", 0),
+            preferences.get("_config_property", "同步配置版本（不可删除）"),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except ConfigError as exc:
