@@ -19,6 +19,10 @@ REQUIRED_DATABASES = (
     "作者",
 )
 
+SETTINGS_DATABASE = "设置"
+SETTINGS_TITLE = "同步设置"
+SETTINGS_ICON = "https://www.notion.so/icons/settings_gray.svg"
+
 
 def chunks(values: list[Any], size: int = 100) -> Iterable[list[Any]]:
     for index in range(0, len(values), size):
@@ -111,6 +115,165 @@ class NotionWorkspace:
                 "Name",
             )
         return self
+
+    def ensure_sync_settings(self, default_start_year: int = 2023) -> dict[str, Any]:
+        """Read user preferences, creating the settings database when absent."""
+        if SETTINGS_DATABASE not in self.sources:
+            database = self.request(
+                "databases",
+                "POST",
+                {
+                    "parent": {"type": "page_id", "page_id": self.page_id},
+                    "title": text_value(SETTINGS_DATABASE),
+                    "is_inline": True,
+                    "icon": {"type": "external", "external": {"url": SETTINGS_ICON}},
+                    "initial_data_source": {
+                        "properties": {
+                            "配置": {"title": {}},
+                            "已读进度显示为100%": {"checkbox": {}},
+                            "移出书架时删除": {"checkbox": {}},
+                            "同步划线和笔记": {"checkbox": {}},
+                            "阅读统计起始年份": {
+                                "number": {"format": "number"}
+                            },
+                            "已应用配置码": {"number": {"format": "number"}},
+                        }
+                    },
+                },
+            )
+            database_id = database["id"]
+            sources = database.get("data_sources") or []
+            source_id = sources[0]["id"] if sources else database_id
+            self.databases[SETTINGS_DATABASE] = database_id
+            self.sources[SETTINGS_DATABASE] = source_id
+            self.schemas[SETTINGS_DATABASE] = {
+                "配置": "title",
+                "已读进度显示为100%": "checkbox",
+                "移出书架时删除": "checkbox",
+                "同步划线和笔记": "checkbox",
+                "阅读统计起始年份": "number",
+                "已应用配置码": "number",
+            }
+            self.titles[SETTINGS_DATABASE] = "配置"
+
+        rows = self.query_all(SETTINGS_DATABASE)
+        if not rows:
+            page_id = self.create(
+                SETTINGS_DATABASE,
+                {
+                    "配置": SETTINGS_TITLE,
+                    "已读进度显示为100%": False,
+                    "移出书架时删除": True,
+                    "同步划线和笔记": True,
+                    "阅读统计起始年份": default_start_year,
+                    "已应用配置码": 0,
+                },
+                SETTINGS_ICON,
+            )
+            self.request(
+                f"blocks/{page_id}/children",
+                "PATCH",
+                {
+                    "children": [
+                        {
+                            "object": "block",
+                            "type": "callout",
+                            "callout": {
+                                "icon": {"type": "emoji", "emoji": "⚙️"},
+                                "rich_text": text_value(
+                                    "WeRead2Notion 每次同步前都会读取本页属性。"
+                                    "删除本数据库或缺少字段时，将自动使用系统默认值。"
+                                ),
+                            },
+                        },
+                        {
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": text_value(
+                                    "已读进度显示为100%：只改变 Notion 展示，不修改微信读书真实进度。"
+                                )
+                            },
+                        },
+                        {
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": text_value(
+                                    "阅读统计起始年份：使用数字填写，例如 2023。"
+                                )
+                            },
+                        },
+                        {
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": text_value(
+                                    "已应用配置码：由系统维护的数字，请勿手动修改。"
+                                )
+                            },
+                        },
+                        {
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": text_value(
+                                    "移出书架时删除：将书籍及自动同步内容移入 Notion 回收站。"
+                                )
+                            },
+                        },
+                        {
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": text_value(
+                                    "同步划线和笔记：关闭后不再更新书籍正文中的自动同步内容。"
+                                )
+                            },
+                        },
+                    ]
+                },
+            )
+            rows = self.query_all(SETTINGS_DATABASE)
+
+        properties = (rows[0].get("properties") or {}) if rows else {}
+
+        def value(name: str, default: Any) -> Any:
+            parsed = self.plain_property(properties.get(name))
+            return default if parsed is None else parsed
+
+        settings = {
+            "completed_progress_100": bool(value("已读进度显示为100%", False)),
+            "delete_removed": bool(value("移出书架时删除", True)),
+            "sync_notes": bool(value("同步划线和笔记", True)),
+            "start_year": int(value("阅读统计起始年份", default_start_year)),
+        }
+        config_code = (
+            1_000_000
+            + settings["start_year"] * 8
+            + int(settings["completed_progress_100"])
+            + int(settings["delete_removed"]) * 2
+            + int(settings["sync_notes"]) * 4
+        )
+        settings["settings_changed"] = value("已应用配置码", 0) != config_code
+        settings["_config_code"] = config_code
+        settings["_page_id"] = rows[0].get("id") if rows else None
+        return settings
+
+    def mark_sync_settings_applied(
+        self, page_id: str | None, config_code: int
+    ) -> None:
+        if not page_id:
+            return
+        self.request(
+            f"pages/{page_id}",
+            "PATCH",
+            {
+                "properties": self.properties(
+                    SETTINGS_DATABASE, {"已应用配置码": config_code}
+                )
+            },
+        )
 
     def query_all(self, database_name: str, filter_: dict | None = None) -> list[dict]:
         rows, cursor = [], None

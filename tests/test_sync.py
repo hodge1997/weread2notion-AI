@@ -159,6 +159,29 @@ def test_book_status_uses_explicit_shelf_finish_marker():
     assert book["阅读状态"] == "已读"
 
 
+def test_completed_progress_can_be_displayed_as_100_percent():
+    notion = Notion()
+    sync = Synchronizer(
+        None, notion, preferences={"completed_progress_100": True}
+    )
+    sync.sync_books(
+        {"book-1": {"title": "测试书籍", "finishReading": 1}},
+        {
+            "book-1": {
+                "info": {"title": "测试书籍"},
+                "progress": {"progress": 40},
+            }
+        },
+        {},
+        {},
+        {"day": {}, "week": {}, "month": {}, "year": {}},
+        {"book-1"},
+        {},
+    )
+    book = next(raw for database, raw in notion.rows if database == "书架")
+    assert book["阅读进度"] == 1
+
+
 def test_sync_version_is_marked_only_after_book_content():
     notion = Notion()
     sync = Synchronizer(None, notion)

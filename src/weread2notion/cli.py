@@ -37,10 +37,19 @@ def main(argv=None) -> None:
             settings.notion_version,
             settings.request_interval,
         ).discover()
+        preferences = notion.ensure_sync_settings(settings.start_year)
         if command == "check":
             print(
                 json.dumps(
-                    {"databases": notion.databases, "schemas": notion.schemas},
+                    {
+                        "databases": notion.databases,
+                        "schemas": notion.schemas,
+                        "settings": {
+                            key: value
+                            for key, value in preferences.items()
+                            if not key.startswith("_")
+                        },
+                    },
                     ensure_ascii=False,
                     indent=2,
                 )
@@ -51,9 +60,13 @@ def main(argv=None) -> None:
             notion,
             settings.start_year,
             dry_run=False,
+            preferences=preferences,
         ).run(
             full=getattr(args, "full", False),
             backup_dir=settings.backup_dir,
+        )
+        notion.mark_sync_settings_applied(
+            preferences.get("_page_id"), preferences.get("_config_code", 0)
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except ConfigError as exc:

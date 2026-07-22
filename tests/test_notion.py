@@ -88,3 +88,109 @@ def test_row_index_normalizes_integer_float_keys(monkeypatch):
         ],
     )
     assert notion.row_index("阅读记录", "时间戳")["1"]["page_id"] == "record-page"
+
+
+def test_existing_sync_settings_are_read_from_notion(monkeypatch):
+    notion = NotionWorkspace("token", "page", "version", client=Client())
+    notion.sources["设置"] = "settings-source"
+    notion.schemas["设置"] = {
+        "配置": "title",
+        "已读进度显示为100%": "checkbox",
+        "移出书架时删除": "checkbox",
+        "同步划线和笔记": "checkbox",
+        "阅读统计起始年份": "number",
+        "已应用配置码": "number",
+    }
+    monkeypatch.setattr(
+        notion,
+        "query_all",
+        lambda database: [
+            {
+                "properties": {
+                    "已读进度显示为100%": {
+                        "type": "checkbox",
+                        "checkbox": True,
+                    },
+                    "移出书架时删除": {
+                        "type": "checkbox",
+                        "checkbox": False,
+                    },
+                    "同步划线和笔记": {
+                        "type": "checkbox",
+                        "checkbox": True,
+                    },
+                    "阅读统计起始年份": {"type": "number", "number": 2025},
+                    "已应用配置码": {"type": "number", "number": 0},
+                }
+            }
+        ],
+    )
+    settings = notion.ensure_sync_settings()
+    assert {key: settings[key] for key in (
+        "completed_progress_100",
+        "delete_removed",
+        "sync_notes",
+        "start_year",
+    )} == {
+        "completed_progress_100": True,
+        "delete_removed": False,
+        "sync_notes": True,
+        "start_year": 2025,
+    }
+    assert settings["settings_changed"] is True
+
+
+def test_missing_sync_settings_database_is_created(monkeypatch):
+    notion = NotionWorkspace("token", "root-page", "version", client=Client())
+    calls = []
+    rows = []
+
+    def request(path, method="GET", body=None):
+        calls.append((path, method, body))
+        if path == "databases":
+            return {"id": "settings-db", "data_sources": [{"id": "settings-source"}]}
+        return {}
+
+    def query_all(database):
+        if not rows:
+            return []
+        return rows
+
+    def create(database, raw, icon=None, cover=None):
+        rows.append(
+            {
+                "properties": {
+                    "已读进度显示为100%": {
+                        "type": "checkbox",
+                        "checkbox": raw["已读进度显示为100%"],
+                    },
+                    "移出书架时删除": {
+                        "type": "checkbox",
+                        "checkbox": raw["移出书架时删除"],
+                    },
+                    "同步划线和笔记": {
+                        "type": "checkbox",
+                        "checkbox": raw["同步划线和笔记"],
+                    },
+                    "阅读统计起始年份": {
+                        "type": "number",
+                        "number": raw["阅读统计起始年份"],
+                    },
+                    "已应用配置码": {
+                        "type": "number",
+                        "number": raw["已应用配置码"],
+                    },
+                }
+            }
+        )
+        return "settings-page"
+
+    monkeypatch.setattr(notion, "request", request)
+    monkeypatch.setattr(notion, "query_all", query_all)
+    monkeypatch.setattr(notion, "create", create)
+
+    settings = notion.ensure_sync_settings(2024)
+    assert settings["start_year"] == 2024
+    assert notion.sources["设置"] == "settings-source"
+    assert calls[0][0:2] == ("databases", "POST")
+    assert any(call[0] == "blocks/settings-page/children" for call in calls)

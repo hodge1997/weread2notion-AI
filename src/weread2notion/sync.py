@@ -20,10 +20,24 @@ SYNC_VERSION = 8
 
 
 class Synchronizer:
-    def __init__(self, weread, notion, start_year: int = 2023, dry_run: bool = False):
+    def __init__(
+        self,
+        weread,
+        notion,
+        start_year: int = 2023,
+        dry_run: bool = False,
+        preferences: dict[str, Any] | None = None,
+    ):
         self.weread = weread
         self.notion = notion
-        self.start_year = start_year
+        self.preferences = {
+            "completed_progress_100": False,
+            "delete_removed": True,
+            "sync_notes": True,
+            "start_year": start_year,
+            **(preferences or {}),
+        }
+        self.start_year = int(self.preferences["start_year"])
         self.dry_run = dry_run
         self.counts = defaultdict(int)
 
@@ -76,6 +90,8 @@ class Synchronizer:
             or int(entry.get("sort") or entry.get("readUpdateTime") or 0)
             > int(existing[book_id].get("sort") or 0)
         }
+        if self.preferences.get("settings_changed"):
+            changed_ids.update(entry_by_id)
 
         days, stats = self.weread.reading_days(self.start_year)
 
@@ -92,7 +108,7 @@ class Synchronizer:
         # Only start destructive work after every WeRead request has succeeded.
         # A transient upstream failure must never make the current shelf appear
         # empty and remove valid Notion pages.
-        if not full:
+        if not full and self.preferences["delete_removed"]:
             self.delete_removed_books(removed_ids, existing)
             for book_id in removed_ids:
                 existing.pop(book_id, None)
@@ -427,7 +443,11 @@ class Synchronizer:
                 # and is commonly zero even for books with substantial progress.
                 "阅读时长": reading_time,
                 "阅读时长（分钟）": reading_time / 60,
-                "阅读进度": int(progress.get("progress") or 0) / 100,
+                "阅读进度": (
+                    1
+                    if finish_reading and self.preferences["completed_progress_100"]
+                    else int(progress.get("progress") or 0) / 100
+                ),
                 "开始阅读时间": iso_date(
                     progress.get("startReadingTime") or progress.get("beginReadingDate")
                 ),
@@ -460,6 +480,17 @@ class Synchronizer:
         for book_id, bundle in bundles.items():
             page_id = books.get(book_id)
             if not page_id:
+                continue
+            if not self.preferences["sync_notes"]:
+                self.notion.request(
+                    f"pages/{page_id}",
+                    "PATCH",
+                    {
+                        "properties": self.notion.properties(
+                            "书架", {"同步版本": SYNC_VERSION}
+                        )
+                    },
+                )
                 continue
             # Highlights and reviews are rendered directly into the book body.
             # Do not create one Notion page/relation tag per item.
