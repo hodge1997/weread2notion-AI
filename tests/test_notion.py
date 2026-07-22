@@ -98,6 +98,7 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
         "阅读完成进度强制改为100%": "checkbox",
         "只同步我的书架书籍": "checkbox",
         "同步划线和笔记": "checkbox",
+        "正文划线排序方式": "number",
         "阅读统计起始年份": "number",
         "同步配置版本（不可删除）": "number",
     }
@@ -119,6 +120,7 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
                         "type": "checkbox",
                         "checkbox": True,
                     },
+                    "正文划线排序方式": {"type": "number", "number": 1},
                     "阅读统计起始年份": {"type": "number", "number": 2025},
                     "同步配置版本（不可删除）": {
                         "type": "number",
@@ -133,11 +135,13 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
         "completed_progress_100",
         "delete_removed",
         "sync_notes",
+        "highlight_sort_mode",
         "start_year",
     )} == {
         "completed_progress_100": True,
         "delete_removed": False,
         "sync_notes": True,
+        "highlight_sort_mode": 1,
         "start_year": 2025,
     }
     assert settings["settings_changed"] is True
@@ -179,6 +183,7 @@ def test_legacy_sync_setting_names_remain_compatible(monkeypatch):
             }
         ],
     )
+    monkeypatch.setattr(notion, "request", lambda *args, **kwargs: {})
     settings = notion.ensure_sync_settings()
     assert settings["completed_progress_100"] is True
     assert settings["delete_removed"] is False
@@ -216,6 +221,10 @@ def test_missing_sync_settings_database_is_created(monkeypatch):
                     "同步划线和笔记": {
                         "type": "checkbox",
                         "checkbox": raw["同步划线和笔记"],
+                    },
+                    "正文划线排序方式": {
+                        "type": "number",
+                        "number": raw["正文划线排序方式"],
                     },
                     "阅读统计起始年份": {
                         "type": "number",
