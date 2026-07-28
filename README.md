@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/hodgekou/weread2notion-AI/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/hodgekou/weread2notion-AI/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/hodgekou/weread2notion-AI/actions/workflows/weread.yml"><img alt="Sync workflow" src="https://github.com/hodgekou/weread2notion-AI/actions/workflows/weread.yml/badge.svg"></a>
   <a href="https://github.com/hodgekou/weread2notion-AI/tree/v1.0.0"><img alt="Version" src="https://img.shields.io/github/v/tag/hodgekou/weread2notion-AI?label=version"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/hodgekou/weread2notion-AI"></a>
