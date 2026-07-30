@@ -9,8 +9,6 @@ updates:
       time: "04:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
     commit-message:
       prefix: deps
 
@@ -22,7 +20,5 @@ updates:
       time: "04:15"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
     commit-message:
       prefix: ci
