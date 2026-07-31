@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .normalize import (
+    SHANGHAI,
     iso_date,
     period_keys,
     progress_status,
@@ -16,6 +17,7 @@ from .blocks import get_callout, get_heading, get_table_of_contents
 BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
+SNAPSHOT_ICON = "https://www.notion.so/icons/clock_gray.svg"
 SYNC_VERSION = 8
 
 
@@ -76,7 +78,8 @@ class Synchronizer:
                     int(notebook.get("sort") or 0),
                 )
 
-        existing = {} if full else self.notion.book_index()
+        previous_books = self.notion.book_index()
+        existing = {} if full else previous_books
         removed_ids = set(existing) - set(entry_by_id)
         changed_ids = {
             book_id
@@ -171,12 +174,132 @@ class Synchronizer:
             changed_ids,
             existing,
         )
+        self.sync_daily_snapshots(entry_by_id, bundles, previous_books)
         self.sync_book_content(bundles, books, periods)
         self.sync_reading_records(days, periods, full=full)
         self.counts["reading_seconds"] = int(
             (stats.get("overall") or {}).get("totalReadTime") or 0
         )
         return dict(self.counts)
+
+    def sync_daily_snapshots(
+        self,
+        entries: dict[str, dict[str, Any]],
+        bundles: dict[str, dict[str, Any]],
+        previous_books: dict[str, dict[str, Any]],
+        snapshot_date: date | None = None,
+    ) -> None:
+        """Upsert one cumulative progress snapshot per current shelf item and day."""
+        if "阅读快照" not in self.notion.sources:
+            return
+        snapshot_day = snapshot_date or datetime.now(SHANGHAI).date()
+        day_text = snapshot_day.isoformat()
+        today_rows = self.notion.query_all(
+            "阅读快照",
+            {"property": "日期", "date": {"equals": day_text}},
+        )
+        today_by_book: dict[str, dict[str, Any]] = {}
+        for row in today_rows:
+            properties = row.get("properties") or {}
+            book_id = self.notion.plain_property(properties.get("BookId"))
+            if book_id:
+                today_by_book[str(book_id)] = {
+                    "page_id": row["id"],
+                    "cumulative": self.notion.plain_property(
+                        properties.get("累计阅读时长")
+                    )
+                    or 0,
+                    "delta": self.notion.plain_property(
+                        properties.get("当日新增阅读时长")
+                    )
+                    or 0,
+                }
+
+        for book_id, entry in sorted(entries.items()):
+            bundle = bundles.get(book_id) or {}
+            info = bundle.get("info") or {}
+            progress = bundle.get("progress") or {}
+            previous = previous_books.get(book_id) or {}
+            current_seconds = int(
+                progress.get("readingTime")
+                or progress.get("recordReadingTime")
+                or previous.get("reading_seconds")
+                or 0
+            )
+            today = today_by_book.get(book_id)
+            if today:
+                delta_seconds = int(today["delta"]) + max(
+                    current_seconds - int(today["cumulative"]), 0
+                )
+            elif previous:
+                delta_seconds = max(
+                    current_seconds - int(previous.get("reading_seconds") or 0), 0
+                )
+            else:
+                # A newly discovered book may already contain lifetime reading
+                # time. Do not mislabel that entire history as today's reading.
+                delta_seconds = 0
+
+            chapter_uid = str(progress.get("chapterUid") or "")
+            current_chapter = next(
+                (
+                    chapter.get("title")
+                    for chapter in (bundle.get("chapters") or [])
+                    if str(chapter.get("chapterUid") or "") == chapter_uid
+                ),
+                previous.get("current_chapter") or "",
+            )
+            finish_reading = bool(entry.get("finishReading"))
+            if progress:
+                progress_value = int(progress.get("progress") or 0) / 100
+                if finish_reading and self.preferences["completed_progress_100"]:
+                    progress_value = 1
+                status = progress_status(progress, finish_reading)
+            else:
+                progress_value = float(previous.get("progress") or 0)
+                status = "已读" if finish_reading else previous.get("status") or "想读"
+            last_read = iso_date(
+                progress.get("updateTime")
+                or entry.get("readUpdateTime")
+                or entry.get("sort")
+            ) or previous.get("last_read")
+            content_type = {
+                "book": "电子书",
+                "album": "有声书",
+                "mp": "文章收藏",
+            }.get(entry.get("kind"), previous.get("content_type") or "电子书")
+            title = (
+                info.get("title")
+                or entry.get("title")
+                or previous.get("title")
+                or book_id
+            )
+            snapshot_key = f"{day_text}:{book_id}"
+            raw = {
+                self.notion.titles["阅读快照"]: f"{day_text} · {title}",
+                "SnapshotKey": snapshot_key,
+                "BookId": book_id,
+                "书名": title,
+                "日期": day_text,
+                "累计阅读时长": current_seconds,
+                "累计阅读时长（分钟）": current_seconds / 60,
+                "当日新增阅读时长": delta_seconds,
+                "当日新增阅读时长（分钟）": delta_seconds / 60,
+                "阅读进度": progress_value,
+                "阅读状态": status,
+                "当前章节": current_chapter,
+                "最后阅读时间": last_read,
+                "内容类型": content_type,
+            }
+            self.notion.upsert(
+                "阅读快照",
+                "SnapshotKey",
+                snapshot_key,
+                raw,
+                SNAPSHOT_ICON,
+                existing_id=(today or {}).get("page_id"),
+            )
+            self.counts["阅读快照"] += 1
 
     def delete_removed_books(self, removed_ids, existing) -> None:
         """Move books absent from /shelf/sync and their generated data to trash."""

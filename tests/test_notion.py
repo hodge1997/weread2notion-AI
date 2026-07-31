@@ -240,3 +240,46 @@ def test_missing_sync_settings_database_is_created(monkeypatch):
     assert notion.sources["设置"] == "settings-source"
     assert calls[0][0:2] == ("databases", "POST")
     assert any(call[0] == "blocks/settings-page/children" for call in calls)
+
+
+def test_missing_reading_snapshots_database_is_created(monkeypatch):
+    notion = NotionWorkspace("token", "root-page", "version", client=Client())
+    calls = []
+
+    def request(path, method="GET", body=None):
+        calls.append((path, method, body))
+        return {
+            "id": "snapshots-db",
+            "data_sources": [{"id": "snapshots-source"}],
+        }
+
+    monkeypatch.setattr(notion, "request", request)
+    notion.ensure_reading_snapshots()
+
+    assert calls[0][0:2] == ("databases", "POST")
+    properties = calls[0][2]["initial_data_source"]["properties"]
+    assert properties["快照"] == {"title": {}}
+    assert properties["SnapshotKey"] == {"rich_text": {}}
+    assert properties["阅读进度"] == {"number": {"format": "percent"}}
+    assert notion.sources["阅读快照"] == "snapshots-source"
+    assert notion.titles["阅读快照"] == "快照"
+
+
+def test_existing_reading_snapshots_database_gets_missing_properties(monkeypatch):
+    notion = NotionWorkspace("token", "root-page", "version", client=Client())
+    notion.sources["阅读快照"] = "snapshots-source"
+    notion.schemas["阅读快照"] = {"快照": "title", "SnapshotKey": "rich_text"}
+    notion.titles["阅读快照"] = "快照"
+    calls = []
+    monkeypatch.setattr(
+        notion,
+        "request",
+        lambda path, method="GET", body=None: calls.append((path, method, body))
+        or {},
+    )
+
+    notion.ensure_reading_snapshots()
+
+    assert calls[0][0:2] == ("data_sources/snapshots-source", "PATCH")
+    assert "日期" in calls[0][2]["properties"]
+    assert "SnapshotKey" not in calls[0][2]["properties"]

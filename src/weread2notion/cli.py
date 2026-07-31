@@ -38,6 +38,7 @@ def main(argv=None) -> None:
             settings.request_interval,
         ).discover()
         preferences = notion.ensure_sync_settings(settings.start_year)
+        notion.ensure_reading_snapshots()
         if command == "check":
             print(
                 json.dumps(

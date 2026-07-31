@@ -22,6 +22,23 @@ REQUIRED_DATABASES = (
 SETTINGS_DATABASE = "设置"
 SETTINGS_TITLE = "同步设置"
 SETTINGS_ICON = "https://www.notion.so/icons/settings_gray.svg"
+SNAPSHOTS_DATABASE = "阅读快照"
+SNAPSHOTS_ICON = "https://www.notion.so/icons/clock_gray.svg"
+SNAPSHOTS_PROPERTIES = {
+    "SnapshotKey": {"rich_text": {}},
+    "BookId": {"rich_text": {}},
+    "书名": {"rich_text": {}},
+    "日期": {"date": {}},
+    "累计阅读时长": {"number": {"format": "number"}},
+    "累计阅读时长（分钟）": {"number": {"format": "number"}},
+    "当日新增阅读时长": {"number": {"format": "number"}},
+    "当日新增阅读时长（分钟）": {"number": {"format": "number"}},
+    "阅读进度": {"number": {"format": "percent"}},
+    "阅读状态": {"select": {}},
+    "当前章节": {"rich_text": {}},
+    "最后阅读时间": {"date": {}},
+    "内容类型": {"select": {}},
+}
 
 
 def chunks(values: list[Any], size: int = 100) -> Iterable[list[Any]]:
@@ -279,6 +296,59 @@ class NotionWorkspace:
         settings["_page_id"] = rows[0].get("id") if rows else None
         return settings
 
+    def ensure_reading_snapshots(self) -> None:
+        """Create or migrate the append-only daily per-book snapshot database."""
+        if SNAPSHOTS_DATABASE not in self.sources:
+            database = self.request(
+                "databases",
+                "POST",
+                {
+                    "parent": {"type": "page_id", "page_id": self.page_id},
+                    "title": text_value(SNAPSHOTS_DATABASE),
+                    "is_inline": True,
+                    "icon": {
+                        "type": "external",
+                        "external": {"url": SNAPSHOTS_ICON},
+                    },
+                    "initial_data_source": {
+                        "properties": {
+                            "快照": {"title": {}},
+                            **SNAPSHOTS_PROPERTIES,
+                        }
+                    },
+                },
+            )
+            database_id = database["id"]
+            sources = database.get("data_sources") or []
+            source_id = sources[0]["id"] if sources else database_id
+            self.databases[SNAPSHOTS_DATABASE] = database_id
+            self.sources[SNAPSHOTS_DATABASE] = source_id
+            self.schemas[SNAPSHOTS_DATABASE] = {
+                "快照": "title",
+                **{
+                    name: next(iter(definition))
+                    for name, definition in SNAPSHOTS_PROPERTIES.items()
+                },
+            }
+            self.titles[SNAPSHOTS_DATABASE] = "快照"
+            return
+
+        missing = {
+            name: definition
+            for name, definition in SNAPSHOTS_PROPERTIES.items()
+            if name not in self.schemas.get(SNAPSHOTS_DATABASE, {})
+        }
+        if not missing:
+            return
+        self.request(
+            f"data_sources/{self.sources[SNAPSHOTS_DATABASE]}",
+            "PATCH",
+            {"properties": missing},
+        )
+        self.schemas[SNAPSHOTS_DATABASE].update(
+            {name: next(iter(definition)) for name, definition in missing.items()}
+        )
+
     def mark_sync_settings_applied(
         self,
         page_id: str | None,
@@ -517,11 +587,31 @@ class NotionWorkspace:
             properties = row.get("properties") or {}
             book_id = self.plain_property(properties.get("BookId"))
             if book_id:
+                last_read = self.plain_property(properties.get("最后阅读时间"))
+                if isinstance(last_read, dict):
+                    last_read = last_read.get("start")
                 result[str(book_id)] = {
                     "page_id": row["id"],
                     "sort": self.plain_property(properties.get("Sort")) or 0,
                     "sync_version": self.plain_property(properties.get("同步版本"))
                     or 0,
+                    "title": self.plain_property(
+                        properties.get(self.titles["书架"])
+                    )
+                    or "",
+                    "reading_seconds": self.plain_property(
+                        properties.get("阅读时长")
+                    )
+                    or 0,
+                    "progress": self.plain_property(properties.get("阅读进度")) or 0,
+                    "status": self.plain_property(properties.get("阅读状态")) or "",
+                    "current_chapter": self.plain_property(
+                        properties.get("当前章节")
+                    )
+                    or "",
+                    "last_read": last_read,
+                    "content_type": self.plain_property(properties.get("内容类型"))
+                    or "",
                 }
         return result
 

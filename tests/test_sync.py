@@ -1,3 +1,5 @@
+from datetime import date
+
 from weread2notion.sync import Synchronizer
 
 
@@ -12,9 +14,11 @@ class Notion:
 
     def __init__(self):
         self.rows = []
+        self.upserts = []
         self.requests = []
         self.archived = []
         self.indexes = {}
+        self.query_rows = {}
         self.sources = {}
         self.schemas = {
             name: {"时长": "number", "时长（分钟）": "number"}
@@ -31,6 +35,15 @@ class Notion:
         cover=None,
         existing_id=None,
     ):
+        self.upserts.append(
+            {
+                "database": database,
+                "key_name": key_name,
+                "key_value": key_value,
+                "raw": raw,
+                "existing_id": existing_id,
+            }
+        )
         self.rows.append((database, raw))
         return existing_id or f"{database}:{key_value}"
 
@@ -44,11 +57,17 @@ class Notion:
     def row_index(self, database, key_name):
         return self.indexes.get(database, {})
 
+    def query_all(self, database, filter_=None):
+        return self.query_rows.get(database, [])
+
     @staticmethod
     def plain_property(prop):
         if not prop:
             return None
-        value = prop.get(prop.get("type"))
+        kind = prop.get("type")
+        value = prop.get(kind)
+        if kind in {"title", "rich_text"}:
+            return "".join(item.get("plain_text", "") for item in (value or []))
         return value
 
     def archive_rows(self, *args, **kwargs):
@@ -330,6 +349,106 @@ def test_book_content_is_grouped_by_chapter():
     assert blocks[0]["type"] == "table_of_contents"
     assert blocks[1]["heading_2"]["rich_text"][0]["text"]["content"] == "第一章"
     assert blocks[2]["callout"]["rich_text"][0]["text"]["content"] == "一条划线"
+
+
+def test_daily_snapshot_uses_previous_book_state_for_delta():
+    notion = Notion()
+    notion.sources["阅读快照"] = "snapshots-source"
+    notion.titles["阅读快照"] = "快照"
+    sync = Synchronizer(None, notion)
+
+    sync.sync_daily_snapshots(
+        {
+            "book-1": {
+                "bookId": "book-1",
+                "title": "测试书籍",
+                "kind": "book",
+                "readUpdateTime": 1691251200,
+            }
+        },
+        {
+            "book-1": {
+                "info": {"title": "测试书籍"},
+                "progress": {
+                    "progress": 50,
+                    "readingTime": 900,
+                    "updateTime": 1691251200,
+                },
+                "chapters": [],
+            }
+        },
+        {
+            "book-1": {
+                "reading_seconds": 600,
+                "progress": 0.4,
+                "status": "在读",
+            }
+        },
+        snapshot_date=date(2026, 7, 31),
+    )
+
+    snapshot = notion.upserts[-1]
+    assert snapshot["key_value"] == "2026-07-31:book-1"
+    assert snapshot["raw"]["累计阅读时长"] == 900
+    assert snapshot["raw"]["当日新增阅读时长"] == 300
+    assert snapshot["raw"]["当日新增阅读时长（分钟）"] == 5
+    assert snapshot["raw"]["阅读进度"] == 0.5
+
+
+def test_daily_snapshot_reuses_same_day_row_and_accumulates_delta():
+    notion = Notion()
+    notion.sources["阅读快照"] = "snapshots-source"
+    notion.titles["阅读快照"] = "快照"
+    notion.query_rows["阅读快照"] = [
+        {
+            "id": "snapshot-page",
+            "properties": {
+                "BookId": {"type": "rich_text", "rich_text": [{"plain_text": "book-1"}]},
+                "累计阅读时长": {"type": "number", "number": 900},
+                "当日新增阅读时长": {"type": "number", "number": 300},
+            },
+        }
+    ]
+    sync = Synchronizer(None, notion)
+
+    sync.sync_daily_snapshots(
+        {"book-1": {"bookId": "book-1", "title": "测试书籍", "kind": "book"}},
+        {
+            "book-1": {
+                "info": {"title": "测试书籍"},
+                "progress": {"progress": 55, "readingTime": 1020},
+                "chapters": [],
+            }
+        },
+        {"book-1": {"reading_seconds": 600}},
+        snapshot_date=date(2026, 7, 31),
+    )
+
+    snapshot = notion.upserts[-1]
+    assert snapshot["existing_id"] == "snapshot-page"
+    assert snapshot["raw"]["当日新增阅读时长"] == 420
+
+
+def test_new_book_lifetime_time_is_not_counted_as_today():
+    notion = Notion()
+    notion.sources["阅读快照"] = "snapshots-source"
+    notion.titles["阅读快照"] = "快照"
+    sync = Synchronizer(None, notion)
+
+    sync.sync_daily_snapshots(
+        {"book-1": {"bookId": "book-1", "title": "新书", "kind": "book"}},
+        {
+            "book-1": {
+                "info": {"title": "新书"},
+                "progress": {"progress": 70, "readingTime": 7200},
+                "chapters": [],
+            }
+        },
+        {},
+        snapshot_date=date(2026, 7, 31),
+    )
+
+    assert notion.upserts[-1]["raw"]["当日新增阅读时长"] == 0
 
 
 def test_plan_uses_shelf_as_authoritative_source():
