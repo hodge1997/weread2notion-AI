@@ -314,6 +314,38 @@ def test_existing_people_and_categories_are_reused_without_writes():
     assert notion.rows == []
 
 
+def test_new_people_and_categories_are_created_with_icons():
+    notion = Notion()
+    notion.titles.update({"作者": "姓名", "分类": "名称"})
+    created = []
+
+    def create(database, raw, icon):
+        created.append((database, raw, icon))
+        return f"{database}:created"
+
+    notion.create = create
+    sync = Synchronizer(None, notion)
+
+    authors, categories = sync.sync_people_and_categories(
+        [{"author": "作者甲", "category": "分类甲"}], {}
+    )
+
+    assert authors == {"作者甲": "作者:created"}
+    assert categories == {"分类甲": "分类:created"}
+    assert created == [
+        (
+            "作者",
+            {"姓名": "作者甲"},
+            "https://www.notion.so/icons/user-circle-filled_gray.svg",
+        ),
+        (
+            "分类",
+            {"名称": "分类甲"},
+            "https://www.notion.so/icons/tag_gray.svg",
+        ),
+    ]
+
+
 def test_unchanged_reading_records_do_not_write_pages():
     notion = Notion()
     notion.titles["阅读记录"] = "标题"

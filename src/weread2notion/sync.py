@@ -16,6 +16,7 @@ from .blocks import get_callout, get_heading, get_table_of_contents
 
 BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
 USER_ICON = "https://www.notion.so/icons/user-circle-filled_gray.svg"
+TAG_ICON = "https://www.notion.so/icons/tag_gray.svg"
 TARGET_ICON = "https://www.notion.so/icons/target_red.svg"
 SNAPSHOT_ICON = "https://www.notion.so/icons/clock_gray.svg"
 SYNC_VERSION = 8
