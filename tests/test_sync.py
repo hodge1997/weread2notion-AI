@@ -101,7 +101,7 @@ def test_dry_run_reports_shelf_breakdown_without_notion():
             return {
                 "books": [{"bookId": "book-1"}],
                 "albums": [{"albumId": "album-1"}],
-                "mp": [{"bookId": "article-1"}],
+                "mp": {"book": {"bookId": "article-1", "title": "文章收藏"}},
             }
 
         def notebooks(self):
@@ -114,7 +114,7 @@ def test_dry_run_reports_shelf_breakdown_without_notion():
         "shelf_entries": 3,
         "related_books": 1,
         "notebook_totals": {"books": 1, "notes": 2},
-        "shelf_breakdown": {"album": 1, "article": 1, "book": 1},
+        "shelf_breakdown": {"album": 1, "book": 1, "mp": 1},
         "readme": "未连接 Notion；没有写入任何数据。",
     }
 
