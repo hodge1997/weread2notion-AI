@@ -2,6 +2,9 @@
 
 All notable changes to WeRead2Notion AI are documented in this file.
 
+The project remains free and open source. Documentation updates are kept here
+so users can quickly see what changed without affecting the sync workflow.
+
 ## v1.0.2 - 2026-08-14
 
 - Added one daily reading snapshot per shelf book, including cumulative and daily reading time.
