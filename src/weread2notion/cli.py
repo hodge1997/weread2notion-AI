@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .config import ConfigError, Settings
+from .export import export_weread
 from .notion import NotionWorkspace
 from .sync import Synchronizer
 from .weread import WeReadClient
@@ -23,6 +24,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="将最终同步结果写入 JSON 文件，供 CI 摘要使用",
     )
     sub.add_parser("check", help="检查模板数据库与属性")
+    export = sub.add_parser("export", help="导出微信读书书架数据")
+    export.add_argument("--format", choices=("json", "markdown"), default="json")
+    export.add_argument("--output", default="weread-export")
     return parser
 
 
@@ -32,6 +36,9 @@ def main(argv=None) -> None:
     try:
         settings = Settings.from_env()
         weread = WeReadClient(settings.weread_api_key, settings.skill_version)
+        if command == "export":
+            print(json.dumps(export_weread(weread, args.output, args.format), ensure_ascii=False, indent=2))
+            return
         if command == "sync" and getattr(args, "dry_run", False):
             result = Synchronizer(weread, None, settings.start_year, dry_run=True).run()
             print(json.dumps(result, ensure_ascii=False, indent=2))
