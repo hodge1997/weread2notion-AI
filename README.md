@@ -188,6 +188,17 @@ WeRead2Notion 会把微信读书作为同步数据的来源。下列内容由同
 
 ## 更多文档
 
+### 导出数据
+
+如需备份或迁移到其他工具，可以在本地使用 API Key 导出当前书架：
+
+```bash
+weread2notion export --format json --output weread-export
+weread2notion export --format markdown --output weread-export
+```
+
+导出目录包含 `manifest.json`；Markdown 模式还会在 `books/` 下生成每本书的简介、划线和笔记。导出只读取微信读书，不连接或修改 Notion。
+
 - [技术文档与本地运行说明](docs/TECHNICAL.md)
 - [v1.0.0 版本说明](docs/RELEASE_NOTES_v1.0.0.md)
 - [社区发布文案](docs/COMMUNITY_POST.md)
