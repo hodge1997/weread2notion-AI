@@ -37,6 +37,7 @@ class Synchronizer:
             "completed_progress_100": False,
             "delete_removed": True,
             "sync_notes": True,
+            "save_snapshots": True,
             "start_year": start_year,
             **(preferences or {}),
         }
@@ -180,7 +181,8 @@ class Synchronizer:
             changed_ids,
             existing,
         )
-        self.sync_daily_snapshots(entry_by_id, bundles, previous_books)
+        if self.preferences["save_snapshots"]:
+            self.sync_daily_snapshots(entry_by_id, bundles, previous_books)
         self.sync_book_content(bundles, books, periods)
         self.sync_reading_records(days, periods, full=full)
         self.counts["reading_seconds"] = int(

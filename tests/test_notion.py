@@ -98,6 +98,7 @@ def test_existing_sync_settings_are_read_from_notion(monkeypatch):
         "阅读完成进度强制改为100%": "checkbox",
         "只同步我的书架书籍": "checkbox",
         "同步划线和笔记": "checkbox",
+        "保存阅读快照": "checkbox",
         "阅读统计起始年份": "number",
         "同步配置版本（不可删除）": "number",
     }

@@ -150,6 +150,7 @@ class NotionWorkspace:
                             "阅读完成进度强制改为100%": {"checkbox": {}},
                             "只同步我的书架书籍": {"checkbox": {}},
                             "同步划线和笔记": {"checkbox": {}},
+                            "保存阅读快照": {"checkbox": {}},
                             "阅读统计起始年份": {
                                 "number": {"format": "number"}
                             },
@@ -170,6 +171,7 @@ class NotionWorkspace:
                 "阅读完成进度强制改为100%": "checkbox",
                 "只同步我的书架书籍": "checkbox",
                 "同步划线和笔记": "checkbox",
+                "保存阅读快照": "checkbox",
                 "阅读统计起始年份": "number",
                 "同步配置版本（不可删除）": "number",
             }
@@ -184,6 +186,7 @@ class NotionWorkspace:
                     "阅读完成进度强制改为100%": False,
                     "只同步我的书架书籍": True,
                     "同步划线和笔记": True,
+                    "保存阅读快照": True,
                     "阅读统计起始年份": default_start_year,
                     "同步配置版本（不可删除）": 0,
                 },
@@ -250,6 +253,15 @@ class NotionWorkspace:
                                 )
                             },
                         },
+                        {
+                            "object": "block",
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": text_value(
+                                    "保存阅读快照：关闭后不再写入每日阅读快照数据库。"
+                                )
+                            },
+                        },
                     ]
                 },
             )
@@ -276,6 +288,7 @@ class NotionWorkspace:
                 compatible_value("只同步我的书架书籍", "移出书架时删除", True)
             ),
             "sync_notes": bool(value("同步划线和笔记", True)),
+            "save_snapshots": bool(value("保存阅读快照", True)),
             "start_year": int(value("阅读统计起始年份", default_start_year)),
         }
         config_code = (
@@ -284,6 +297,7 @@ class NotionWorkspace:
             + int(settings["completed_progress_100"])
             + int(settings["delete_removed"]) * 2
             + int(settings["sync_notes"]) * 4
+            + int(settings["save_snapshots"]) * 8
         )
         config_property = (
             "同步配置版本（不可删除）"

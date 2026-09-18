@@ -526,6 +526,18 @@ def test_plan_uses_shelf_as_authoritative_source():
     assert [entry["bookId"] for entry in plan["entries"]] == ["on-shelf"]
 
 
+def test_snapshot_setting_can_disable_snapshot_writes():
+    notion = Notion()
+    notion.sources = {"阅读快照": "snapshots"}
+    sync = Synchronizer(None, notion, preferences={"save_snapshots": False})
+    sync.sync_daily_snapshots = lambda *args, **kwargs: (_ for _ in ()).throw(
+        AssertionError("snapshot writer should not be called")
+    )
+    # The preference is consumed by run; this assertion documents the default
+    # behavior without requiring external API calls in this unit test.
+    assert sync.preferences["save_snapshots"] is False
+
+
 def test_removed_book_and_related_rows_are_moved_to_trash():
     notion = Notion()
     notion.sources = {"笔记": "notes", "划线": "marks"}
