@@ -95,6 +95,30 @@ def test_period_rows_have_valid_date_ranges():
     assert day["时长（分钟）"] == 10
 
 
+def test_dry_run_reports_shelf_breakdown_without_notion():
+    class WeRead:
+        def shelf(self):
+            return {
+                "books": [{"bookId": "book-1"}],
+                "albums": [{"albumId": "album-1"}],
+                "mp": [{"bookId": "article-1"}],
+            }
+
+        def notebooks(self):
+            return ([{"bookId": "book-1"}], {"books": 1, "notes": 2})
+
+    result = Synchronizer(WeRead(), None, dry_run=True).run()
+
+    assert result == {
+        "mode": "dry-run",
+        "shelf_entries": 3,
+        "related_books": 1,
+        "notebook_totals": {"books": 1, "notes": 2},
+        "shelf_breakdown": {"album": 1, "article": 1, "book": 1},
+        "readme": "未连接 Notion；没有写入任何数据。",
+    }
+
+
 def test_book_sync_uses_accumulated_reading_time():
     notion = Notion()
     sync = Synchronizer(None, notion)

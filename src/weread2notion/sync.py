@@ -63,11 +63,16 @@ class Synchronizer:
     def run(self, full: bool = False, backup_dir=None) -> dict[str, Any]:
         plan = self.plan()
         if self.dry_run:
+            kind_counts = defaultdict(int)
+            for entry in plan["entries"]:
+                kind_counts[entry.get("kind") or "unknown"] += 1
             return {
                 "mode": "dry-run",
                 "shelf_entries": len(plan["entries"]),
                 "related_books": len(plan["book_ids"]),
                 "notebook_totals": plan["note_totals"],
+                "shelf_breakdown": dict(sorted(kind_counts.items())),
+                "readme": "未连接 Notion；没有写入任何数据。",
             }
         entry_by_id = {entry["bookId"]: entry for entry in plan["entries"]}
         for notebook in plan["notebooks"]:
