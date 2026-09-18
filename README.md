@@ -74,7 +74,7 @@
 | --- | --- |
 | `WEREAD_API_KEY` | 微信读书 Gateway API Key，可从 [微信读书助手](https://weread.qq.com/r/weread-skills) 获取 |
 | `NOTION_TOKEN` | 第 2 步创建的 Notion Integration Secret |
-| `NOTION_PAGE` | 第 1 步 Duplicate 后的新页面完整 URL 或页面 ID |
+| `NOTION_PAGE` | 第 1 步 Duplicate 后的新页面完整 URL，或页面名称加 32 位页面 ID，例如 `WeRead2Notion-AI-202609-33f29affe5af832584a3812322c93a25` |
 
 对应关系必须正确：`NOTION_TOKEN` 所属 Integration 必须已经连接到 `NOTION_PAGE`；不要使用公共模板页面。不要把 Token、API Key、Cookie 或 `.env` 内容提交到 GitHub。
 
@@ -132,7 +132,9 @@ pip install -e .
 ```dotenv
 WEREAD_API_KEY=你的微信读书APIKey
 NOTION_TOKEN=你的NotionIntegrationSecret
-NOTION_PAGE=https://www.notion.so/你的页面
+NOTION_PAGE=https://app.notion.com/p/wph/WeRead2Notion-AI-202609-33f29affe5af832584a3812322c93a25#33f29affe5af832584a3812322c93a25
+# 也可以只填写页面名称和页面 ID：
+# NOTION_PAGE=WeRead2Notion-AI-202609-33f29affe5af832584a3812322c93a25
 ```
 
 可选环境变量：`START_YEAR`（默认 `2023`）、`BACKUP_DIR`（默认 `backups`）、`NOTION_VERSION` 和 `NOTION_REQUEST_INTERVAL`。
