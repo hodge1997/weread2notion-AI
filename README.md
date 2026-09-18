@@ -11,200 +11,179 @@
   <a href="https://github.com/hodgekou/weread2notion-AI/actions/workflows/weread.yml"><img alt="Sync workflow" src="https://github.com/hodgekou/weread2notion-AI/actions/workflows/weread.yml/badge.svg"></a>
   <a href="https://github.com/hodgekou/weread2notion-AI/tree/v1.0.0"><img alt="Version" src="https://img.shields.io/github/v/tag/hodgekou/weread2notion-AI?label=version"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/hodgekou/weread2notion-AI"></a>
-  <a href="https://github.com/hodgekou/weread2notion-AI/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/hodgekou/weread2notion-AI?style=flat"></a>
 </p>
 
 <p align="center">
   <a href="https://app.notion.com/p/wph/Template-3a329affe5af800b8581f98b71e948fb">复制 Notion 模板</a> ·
-  <a href="#开始使用">开始使用</a> ·
-  <a href="https://github.com/hodgekou/weread2notion-AI/issues/new/choose">反馈问题</a>
+  <a href="#配置步骤">配置步骤</a> ·
+  <a href="https://github.com/hodgekou/weread2notion-AI/issues/new/choose">提交问题</a>
 </p>
 
 # WeRead2Notion AI
 
-> **永久免费、完整开源。** 将你的微信读书书架、阅读进度、章节、划线、个人想法和阅读统计，自动同步到一套完整的 Notion 阅读管理模板。
-
-无需在电脑上长期运行程序。完成一次配置后，GitHub Actions 会每天自动同步。
+一个免费开源的 **微信读书 → Notion 自动同步**工具。它会把你的书架、阅读状态、阅读时长、章节、划线、个人想法和阅读统计同步到 Notion 原生模板中，并由 GitHub Actions 每天自动运行。
 
 <p align="center">
   <a href="https://app.notion.com/p/wph/Template-3a329affe5af800b8581f98b71e948fb">
-    <img src="asset/notion-dashboard.png" alt="WeRead2Notion AI 同步后的 Notion 阅读仪表盘" width="100%">
+    <img src="asset/notion-dashboard.png" alt="同步后的 Notion 阅读仪表盘" width="100%">
   </a>
 </p>
 
-<p align="center"><sub>同步后的 Notion 首页：原生阅读图表、书架状态、统计、分类、作者与设置。</sub></p>
+关键词：微信读书、Notion、自动同步、划线、笔记、阅读统计、GitHub Actions。
 
-## 为什么使用它
+## 可以同步什么
 
-- **无需服务器**：只需 Notion、GitHub Actions 和微信读书 API Key。
-- **一次配置，自动运行**：每天定时同步，也支持随时手动触发。
-- **Notion 原生体验**：使用数据库、视图、分组、公式和 Chart，不依赖外部 Embed 服务。
-- **划线直接进入书籍正文**：按章节整理划线和个人想法，不把内容做成大量 Tag。
-- **书架口径清晰**：以微信读书当前书架为权威来源，人工“读完”标记决定已读状态。
-- **每日阅读快照**：每天保存每本书的累计时长、当日新增时长、进度、状态和当前章节。
-- **安全重建**：全量同步前导出 JSON 备份，再归档旧记录。
+- 以微信读书 `/shelf/sync` 为权威来源同步当前书架。
+- 同步书籍、作者、分类、日/周/月/年阅读统计和原生 Notion Charts。
+- 将划线和个人想法按章节写入书籍页面正文，不创建大量 Tag。
+- 以微信读书人工“读完”标记判断“已读”，不会用 100% 阅读进度代替完成状态。
+- 每天为每本书保存一条阅读快照，记录累计时长、当日新增时长、进度、状态和当前章节。
+- 支持普通增量同步、全量重建、dry-run 预览、GitHub Actions Summary 和本地数据导出。
 
-如果这个项目帮你省下了配置和维护时间，欢迎点击右上角 **Star**。这会帮助更多有相同需求的人发现它。
+## 配置步骤
 
-## 开始使用
+### 1. Duplicate Notion 模板
 
-### 第一步：复制 Notion 模板
+打开 [WeRead2Notion AI Template](https://app.notion.com/p/wph/Template-3a329affe5af800b8581f98b71e948fb)，点击右上角 **Duplicate**，把模板复制到自己的 Notion Workspace。
 
-打开下面的模板页面，然后点击右上角的 `Duplicate`，将它复制到你自己的 Notion Workspace：
+复制后使用新页面的完整 URL；不要把公共模板链接配置为 `NOTION_PAGE`。每次 Duplicate 都会生成新的页面 ID。
 
-[复制 WeRead2Notion AI Template](https://app.notion.com/p/wph/Template-3a329affe5af800b8581f98b71e948fb)
+### 2. 创建 Notion Integration 并连接页面
 
-复制完成后，请保存新页面的完整 URL。后面配置 `NOTION_PAGE` 时会用到它。
+1. 打开 [Notion Integrations](https://www.notion.so/profile/integrations)，点击 **New integration**。
+2. 选择与 Duplicate 页面相同的 Workspace，名称可填写 `WeRead2Notion-AI`。
+3. 在 Capabilities 中启用 `Read content`、`Insert content`、`Update content`。
+4. 保存并复制 Internal Integration Secret；它就是 `NOTION_TOKEN`。
+5. 回到 Duplicate 后的最外层页面，点击 `••• → Connections`，添加刚创建的 Integration。
 
-> 请使用 Duplicate 后的新页面，不要填写上面的公共模板地址。每次 Duplicate 都会生成一个新的页面 ID。
+必须连接最外层的“微信读书”页面，而不是只连接其中某个数据库。否则同步器无法递归发现书架、统计和设置页面。
 
-### 第二步：创建并连接 Notion Integration
+### 3. Fork 项目
 
-1. 打开 [Notion Integrations](https://www.notion.so/profile/integrations)。
-2. 点击 `New integration`。
-3. 名称填写 `WeRead2Notion-AI`。
-4. Workspace 选择刚才复制模板所在的 Workspace。
-5. 在 Capabilities 中启用：
-   - `Read content`
-   - `Insert content`
-   - `Update content`
-6. 保存并复制生成的 Internal Integration Secret，后面将它配置为 `NOTION_TOKEN`。
-7. 返回 Duplicate 后的 Notion 页面，点击右上角 `••• → Connections`，添加 `WeRead2Notion-AI`。
+点击本仓库右上角 **Fork**，把项目 Fork 到你自己的 GitHub 账号。之后应在自己的 Fork 中配置 Secrets、运行 Actions 和查看同步结果；上游仓库只用于获取更新。
 
-Integration 必须连接到最外层的“微信读书”模板页面，这样才能访问页面内的书架和统计数据库，以及各书籍页面中的章节化划线与笔记。
+### 4. 添加三个 GitHub Secrets
 
-### 第三步：Fork 项目并配置 Secrets
-
-点击 GitHub 页面右上角的 `Fork`，将本项目 Fork 到你自己的 GitHub 账号。
-
-进入你 Fork 后的仓库，然后打开：
+进入你自己的 Fork：
 
 `Settings → Secrets and variables → Actions → New repository secret`
 
-依次创建以下三个 Repository secrets：
+创建以下三个 **Repository secrets**，名称必须完全一致：
 
-| Secret 名称 | 填写内容 |
+| Secret | 内容 |
 | --- | --- |
-| `WEREAD_API_KEY` | 你的微信读书 Gateway API Key，可前往 [微信读书助手](https://weread.qq.com/r/weread-skills) 获取 |
-| `NOTION_TOKEN` | 第二步创建的 `WeRead2Notion-AI` Integration Secret |
-| `NOTION_PAGE` | 第一步 Duplicate 后的新 Notion 页面完整 URL |
+| `WEREAD_API_KEY` | 微信读书 Gateway API Key，可从 [微信读书助手](https://weread.qq.com/r/weread-skills) 获取 |
+| `NOTION_TOKEN` | 第 2 步创建的 Notion Integration Secret |
+| `NOTION_PAGE` | 第 1 步 Duplicate 后的新页面完整 URL 或页面 ID |
 
-Secret 名称必须完全一致，并注意以下对应关系：
+对应关系必须正确：`NOTION_TOKEN` 所属 Integration 必须已经连接到 `NOTION_PAGE`；不要使用公共模板页面。不要把 Token、API Key、Cookie 或 `.env` 内容提交到 GitHub。
 
-- `NOTION_TOKEN` 所属的 Integration 必须是你在页面 Connections 中添加的同一个 Integration。
-- `NOTION_PAGE` 必须是你自己的 Duplicate 页面，不能使用公共 Template 页面。
-- 不要把任何 Token 或 API Key 写进 README、代码或 `.env` 后提交到 GitHub。
+### 5. 手动测试一次
 
-### 第四步：测试同步
+1. 打开 Fork 的 **Actions** 页面。
+2. 选择左侧的 **weread sync** workflow。
+3. 点击 **Run workflow**。
+4. 第一次测试保持 `full` 不勾选，然后点击绿色的 **Run workflow**。
+5. 等待 `Sync` job 通过，打开 job 的 **Summary** 查看同步数量，再刷新 Notion 页面。
 
-1. 打开你 Fork 仓库的 `Actions` 页面。
-2. 在左侧选择 `weread sync`。
-3. 点击 `Run workflow`。
-4. 首次测试保持 `full` 未勾选。
-5. 再次点击绿色的 `Run workflow` 开始同步。
+普通同步不会重建整套数据库。只有需要备份并重建全部数据库记录时才勾选 `full`；全量同步会将 JSON 备份作为 Actions artifact 保存。
 
-等待 `Sync` 任务显示绿色勾号后，刷新 Duplicate 后的 Notion 页面。你的书架、阅读进度、阅读时长和统计数据将出现在模板中；划线和笔记会按章节直接写入对应书籍的正文，不需要单独的章节数据库。
+### 6. 自动运行时间
 
-首次运行新版同步器时，会在主页底部自动创建“阅读快照”数据库。每天每本当前书架条目最多生成一条快照；同一天重复运行会更新原记录，并累计当天新增阅读时长。历史快照不会因全量同步或书籍移出书架而删除，可用于制作单书阅读趋势、每日阅读书目和进度变化图表。
+workflow 默认每天 **北京时间 04:00** 自动运行（GitHub Actions 使用 UTC，因此配置是 `0 20 * * *`）。也可以随时手动运行。修改仓库中的 workflow 后，记得提交并推送到你自己的 Fork。
 
-微信读书当前书架是同步范围的唯一依据。书籍从微信读书书架移除后，下一次成功同步会将它在 Notion 中的书籍页面、划线和笔记移入回收站。
+## 同步规则与覆盖范围
 
-“已读”状态以微信读书书架中的人工“读完”标记为准，不根据阅读进度是否达到 100% 推断。未标记读完但已有阅读记录的书会显示为“在读”。
+微信读书当前书架是同步范围的唯一依据。书籍从书架移除后，下一次成功同步会将对应的 Notion 书籍页面、自动同步的划线和笔记移入回收站；历史阅读快照会保留，便于查看趋势。
 
-工作流还会每天自动运行一次。只有需要备份并重新生成全部数据库记录时，才使用 `full` 模式。
+同步器会管理书架属性、统计数据库、书籍页面中的自动同步正文和系统配置字段。直接修改这些自动管理内容，后续同步可能重新写入微信读书返回的数据。主页布局、分栏、数据库视图、筛选、排序和图表不会被同步器重写；你在自动同步区域之外添加的普通页面内容会尽量保留。
 
-需要先查看本次同步会读取哪些内容时，可以在本地运行：
+“已读”以微信读书 `finishReading=1` 的人工状态为准。没有标记读完但有阅读记录的书仍显示为“在读”；“阅读完成进度强制改为100%”只改变 Notion 展示，不会修改微信读书真实进度。
+
+## Notion 个性化设置
+
+模板中的“设置”数据库包含一个“同步设置”页面。每次同步前都会读取这些配置；没有设置页面时，程序会按默认值自动创建。
+
+| 设置名称 | 类型 | 默认值 | 作用 |
+| --- | --- | --- | --- |
+| `阅读完成进度强制改为100%` | Checkbox | `false` | 已标记读完的书在 Notion 显示为 100% |
+| `只同步我的书架书籍` | Checkbox | `true` | 移出微信读书书架的书及其自动同步内容移入回收站 |
+| `同步划线和笔记` | Checkbox | `true` | 将划线和个人想法按章节写入书籍正文 |
+| `保存阅读快照` | Checkbox | `true` | 是否保存每日每本书的阅读快照 |
+| `阅读统计起始年份` | Number | `2023` | 从哪一年开始生成阅读统计 |
+
+配置格式只有两种：开关必须使用真正的 Checkbox（`true` / `false`），数字必须使用 Number，可以是整数或实数，例如 `-1`、`0`、`1`、`2`、`0.5`。不要使用 `"true"`、`"false"`、空字符串或其他字符串代替它们。
+
+`同步配置版本（不可删除）` 是程序维护的系统字段，用于识别配置变化；请不要删除或手动修改。用户配置被读取后不会被默认值覆盖。
+
+## 本地运行与高级命令
+
+需要 Python 3.10+。本地运行时只使用 `.env.example` 作为配置模板：
 
 ```bash
-weread2notion sync --dry-run
+cp .env.example .env
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
-该模式只读取微信读书书架和笔记总数，不连接 Notion，也不会创建、更新或归档任何页面。
+`.env` 中配置：
 
-## 注意：同步内容可能覆盖 Notion 中的手动修改
+```dotenv
+WEREAD_API_KEY=你的微信读书APIKey
+NOTION_TOKEN=你的NotionIntegrationSecret
+NOTION_PAGE=https://www.notion.so/你的页面
+```
 
-WeRead2Notion 会把微信读书作为同步数据的来源。下列内容由同步器管理，如果你直接在 Notion 中修改，后续普通同步或全量同步可能使用微信读书返回的数据重新更新或覆盖：
-
-- 书架数据库中的书名、作者、分类、阅读状态、阅读进度、阅读时间等同步属性
-- 日、周、月、年等阅读统计数据
-- 书籍页面中标记为“由 WeRead2Notion 自动同步”的划线和笔记区域
-- `同步配置版本（不可删除）` 系统字段
-
-你自行添加在自动同步区域之外的普通页面内容，普通增量同步会尽量保留；模板主页的布局、分栏、数据库视图、筛选、排序和图表也不会被同步器重写。但 `full` 全量同步会备份并归档旧数据库记录，再重新创建记录，因此不要把需要长期保留的私人内容只存放在这些自动管理的数据库记录中。
-
-“设置”数据库中的用户配置会被同步器读取，不会被系统默认值反复覆盖；只有系统维护的 `同步配置版本（不可删除）` 会在成功同步后自动更新。
-
-## 个性化同步设置
-
-最新模板包含一个“设置”数据库，其中的“同步设置”页面用于调整同步行为。每次同步都会先读取这些属性：
-
-| 设置 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `阅读完成进度强制改为100%` | Checkbox | 关闭 | 已人工标记读完的书在 Notion 中显示为 100%，不修改微信读书真实进度 |
-| `只同步我的书架书籍` | Checkbox | 开启 | 仅保留微信读书当前书架中的书籍；其他书籍及自动同步内容移入 Notion 回收站 |
-| `同步划线和笔记` | Checkbox | 开启 | 将划线和个人想法按章节写入书籍正文 |
-| `保存阅读快照` | Checkbox | 开启 | 是否写入每日每本书的阅读快照 |
-| `阅读统计起始年份` | Number | 2023 | 从该年份开始生成阅读统计 |
-
-配置值遵循统一规则：开关只使用 Checkbox 的 `true / false`；数值只使用 Number 的实数，例如 `-1`、`0`、`1`、`2` 或 `0.5`。不要使用 `"true"`、`"false"`、`""` 或其他字符串模拟开关和数值。`同步配置版本（不可删除）` 是同步器维护的数字，用于识别设置变化，请勿删除或手动修改。
-
-旧模板中没有“设置”数据库也无需手动升级：下一次联网同步会使用系统默认值，并自动创建数据库、默认配置页面和说明。修改设置后，下一次普通同步会自动刷新受影响的书籍，不需要运行全量同步。
-
-## 常见问题
-
-### 提示 `Could not find block with ID`
-
-请检查：
-
-- `NOTION_PAGE` 是否为 Duplicate 后的新页面 URL。
-- 页面右上角 `••• → Connections` 中是否已经添加 `WeRead2Notion-AI`。
-- GitHub 的 `NOTION_TOKEN` 是否属于该 Integration。
-- Integration 和 Notion 页面是否位于同一个 Workspace。
-
-### 日志显示了其他 Integration 名称
-
-日志中的名称由 `NOTION_TOKEN` 决定，与 GitHub 仓库名称无关。请将 `NOTION_TOKEN` 替换为你自己创建的 `WeRead2Notion-AI` Integration Secret。
-
-### “全部”视图没有数据
-
-确认你使用的是最新 Template，并检查 Actions 是否已成功完成。不要在“全部”视图中添加空的年份筛选。
-
-### “阅读时长格式化”显示“还未阅读”
-
-请确认仓库已经同步到最新版本，然后重新运行一次 Actions。同步器会使用微信读书返回的累计阅读时长更新该字段。
-
-## 问题反馈与功能建议
-
-请通过 [GitHub Issues](https://github.com/hodgekou/weread2notion-AI/issues/new/choose) 提交问题或需求。仓库提供了面向维护者和 AI 的 Issue 模板，建议尽可能提供：
-
-- 当前结果与期望结果
-- 可以复现问题的操作步骤
-- 脱敏后的 GitHub Actions 运行链接或日志
-- 相关 Notion 页面、书名和 BookId
-- 使用普通同步还是全量同步
-- 可以判断问题已经解决的验收标准
-
-除问题或需求描述外，其余信息可以留空或填写“不清楚”。请勿提交 `WEREAD_API_KEY`、`NOTION_TOKEN`、Cookie、`.env` 内容或其他敏感信息。
-
-## 更多文档
-
-### 导出数据
-
-如需备份或迁移到其他工具，可以在本地使用 API Key 导出当前书架：
+可选环境变量：`START_YEAR`（默认 `2023`）、`BACKUP_DIR`（默认 `backups`）、`NOTION_VERSION` 和 `NOTION_REQUEST_INTERVAL`。
 
 ```bash
+# 检查模板数据库和属性
+weread2notion check
+
+# 只读取微信读书并显示计划，不连接或修改 Notion
+weread2notion sync --dry-run
+
+# 普通同步
+weread2notion sync
+
+# 备份并重建全部数据库行
+weread2notion sync --full
+
+# 导出当前书架，不连接或修改 Notion
 weread2notion export --format json --output weread-export
 weread2notion export --format markdown --output weread-export
 ```
 
-导出目录包含 `manifest.json`；Markdown 模式还会在 `books/` 下生成每本书的简介、划线和笔记。导出只读取微信读书，不连接或修改 Notion。
+`--dry-run` 适合在第一次配置或排查问题时使用。`export` 生成 `manifest.json`；Markdown 模式还会在 `books/` 下生成每本书的简介、划线和笔记。导出的内容可能包含个人阅读数据，请按私密数据保存。
 
-- [技术文档与本地运行说明](docs/TECHNICAL.md)
-- [v1.0.0 版本说明](docs/RELEASE_NOTES_v1.0.0.md)
-- [社区发布文案](docs/COMMUNITY_POST.md)
-- [GitHub 仓库发布设置](docs/GITHUB_PUBLISHING.md)
-- [微信读书助手](https://weread.qq.com/r/weread-skills)
-- [提交问题或功能建议](https://github.com/hodgekou/weread2notion-AI/issues/new/choose)
+## 常见问题
+
+### `Could not find block with ID`
+
+确认 `NOTION_PAGE` 是 Duplicate 后的新页面；Integration 已通过 `••• → Connections` 连接最外层页面；`NOTION_TOKEN` 与该 Integration 对应；页面和 Integration 在同一 Workspace。
+
+### “全部”视图为空或年份显示为“无年”
+
+先确认 Actions 成功完成，并使用最新 Template。年份来自同步器写入的完成日期/阅读日期属性；不要在“全部”视图中保留空的年份筛选。
+
+### GitHub Actions 没有自动运行
+
+检查你查看的是自己 Fork 的 Actions，而不是上游仓库；确认 workflow 文件存在于默认分支，并在仓库 Actions 设置中允许 workflow 运行。GitHub 的定时任务可能有少量延迟。
+
+### “阅读时长格式化”显示“还未阅读”
+
+确认同步已成功，并重新运行一次普通同步。该字段由微信读书返回的累计阅读时长更新。
+
+### 如何同步上游更新
+
+在自己的 Fork 页面点击 **Sync fork**，先将上游 `main` 合并到自己的 `main`，再运行 Actions。同步 Fork 不会自动修改你的 Notion 数据，但更新后的同步代码可能改变写入规则；升级前请查看 Release 说明。
+
+## 问题反馈
+
+请通过 [GitHub Issues](https://github.com/hodgekou/weread2notion-AI/issues/new/choose) 提交问题或功能建议。尽量提供：期望结果、复现步骤、脱敏后的 Actions 链接或日志、相关书名/BookId、是否使用 `full`，以及可验证的验收标准。绝不要提交任何 API Key、Token、Cookie、`.env` 内容或私人笔记原文。
+
+更多技术细节见 [技术文档](docs/TECHNICAL.md)，版本信息见 [v1.0.0 Release Notes](docs/RELEASE_NOTES_v1.0.0.md)。
 
 ## AI 生成声明
 
