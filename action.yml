@@ -40,11 +40,13 @@ runs:
         NOTION_TOKEN: ${{ inputs.notion-token }}
         NOTION_PAGE: ${{ inputs.notion-page }}
       run: |
+        summary_file="$RUNNER_TEMP/weread2notion-summary.json"
         if [ "${{ inputs.full }}" = "true" ]; then
-          weread2notion sync --full
+          weread2notion sync --full --summary-file "$summary_file"
         else
-          weread2notion sync
+          weread2notion sync --summary-file "$summary_file"
         fi
+        echo "WEREAD2NOTION_SUMMARY_FILE=$summary_file" >> "$GITHUB_ENV"
 
 branding:
   icon: book-open

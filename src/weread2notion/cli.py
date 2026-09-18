@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from .config import ConfigError, Settings
 from .notion import NotionWorkspace
@@ -16,6 +17,10 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--full", action="store_true", help="备份并重建全部数据库行")
     sync.add_argument(
         "--dry-run", action="store_true", help="只读取微信数据并显示同步计划"
+    )
+    sync.add_argument(
+        "--summary-file",
+        help="将最终同步结果写入 JSON 文件，供 CI 摘要使用",
     )
     sub.add_parser("check", help="检查模板数据库与属性")
     return parser
@@ -71,6 +76,14 @@ def main(argv=None) -> None:
             preferences.get("_config_code", 0),
             preferences.get("_config_property", "同步配置版本（不可删除）"),
         )
+        summary_file = getattr(args, "summary_file", None)
+        if summary_file:
+            summary_path = Path(summary_file)
+            if summary_path.suffix.lower() != ".json" or ".." in summary_path.parts:
+                raise SystemExit("summary-file 必须是不含父目录穿越的 .json 路径")
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            with summary_path.open("w", encoding="utf-8") as handle:
+                json.dump(result, handle, ensure_ascii=False, indent=2)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except ConfigError as exc:
         raise SystemExit(f"配置错误：{exc}") from exc

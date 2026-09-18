@@ -25,6 +25,32 @@ jobs:
           notion-token: ${{ secrets.NOTION_TOKEN }}
           notion-page: ${{ secrets.NOTION_PAGE }}
           full: ${{ inputs.full || 'false' }}
+      - name: Write sync summary
+        if: ${{ always() && env.WEREAD2NOTION_SUMMARY_FILE != '' }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_file = Path(os.environ["WEREAD2NOTION_SUMMARY_FILE"])
+          result = json.loads(summary_file.read_text(encoding="utf-8"))
+          labels = {
+              "books": "书籍",
+              "authors": "作者",
+              "categories": "分类",
+              "正文划线": "正文划线",
+              "正文笔记": "正文笔记",
+              "阅读快照": "阅读快照",
+              "archived": "归档记录",
+          }
+          lines = ["## WeRead2Notion 同步摘要", ""]
+          for key, value in result.items():
+              lines.append(f"- **{labels.get(key, key)}**：{value}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("\n".join(lines) + "\n")
+          PY
       - name: Upload full-sync backup
         if: ${{ inputs.full == true }}
         uses: actions/upload-artifact@v7
