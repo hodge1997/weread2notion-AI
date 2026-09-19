@@ -12,6 +12,7 @@ from .normalize import (
     shelf_entries,
 )
 from .blocks import get_callout, get_heading, get_table_of_contents
+from .weread import WeReadError
 
 
 BOOK_ICON = "https://www.notion.so/icons/book_gray.svg"
@@ -44,6 +45,7 @@ class Synchronizer:
         self.start_year = int(self.preferences["start_year"])
         self.dry_run = dry_run
         self.counts = defaultdict(int)
+        self.failed_books: list[dict[str, str]] = []
 
     def plan(self) -> dict[str, Any]:
         shelf = self.weread.shelf()
@@ -113,7 +115,28 @@ class Synchronizer:
         ]
         for index, book_id in enumerate(electronic_ids, 1):
             print(f"读取书籍 {index}/{len(electronic_ids)}: {book_id}")
-            bundles[book_id] = self.weread.book_bundle(book_id)
+            try:
+                bundles[book_id] = self.weread.book_bundle(book_id)
+            except WeReadError as exc:
+                # One transient or malformed book response must not abort the
+                # whole shelf sync. Keep the existing Notion row untouched and
+                # report the failed book in the final summary for retry.
+                self.failed_books.append(
+                    {"book_id": str(book_id), "error": str(exc)}
+                )
+                print(f"跳过书籍 {book_id}（{exc}）")
+
+        failed_ids = {item["book_id"] for item in self.failed_books}
+        if failed_ids and full:
+            # A full sync archives existing rows before rebuilding them. Do not
+            # risk a partial rebuild when any required book could not be read.
+            raise RuntimeError(
+                "全量同步因书籍详情读取失败而中止："
+                + ", ".join(sorted(failed_ids))
+            )
+        for book_id in failed_ids:
+            entry_by_id.pop(book_id, None)
+            changed_ids.discard(book_id)
 
         # Only start destructive work after every WeRead request has succeeded.
         # A transient upstream failure must never make the current shelf appear
@@ -188,7 +211,11 @@ class Synchronizer:
         self.counts["reading_seconds"] = int(
             (stats.get("overall") or {}).get("totalReadTime") or 0
         )
-        return dict(self.counts)
+        result = dict(self.counts)
+        if self.failed_books:
+            result["failed_books"] = self.failed_books
+            result["failed_book_count"] = len(self.failed_books)
+        return result
 
     def sync_daily_snapshots(
         self,

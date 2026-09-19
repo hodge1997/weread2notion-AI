@@ -47,6 +47,13 @@ jobs:
           }
           lines = ["## WeRead2Notion 同步摘要", ""]
           for key, value in result.items():
+              if key == "failed_books":
+                  lines.extend(["", "### 需要重试的书籍", ""])
+                  for item in value:
+                      lines.append(
+                          f"- `{item.get('book_id', 'unknown')}`：{item.get('error', '未知错误')}"
+                      )
+                  continue
               lines.append(f"- **{labels.get(key, key)}**：{value}")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
               handle.write("\n".join(lines) + "\n")
