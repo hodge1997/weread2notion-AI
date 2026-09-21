@@ -51,7 +51,7 @@ jobs:
                   lines.extend(["", "### 需要重试的书籍", ""])
                   for item in value:
                       lines.append(
-                          f"- `{item.get('book_id', 'unknown')}`：{item.get('error', '未知错误')}"
+                          f"- 书籍 ID `{item.get('book_id', 'unknown')}`：{item.get('error', '未知错误')}"
                       )
                   continue
               lines.append(f"- **{labels.get(key, key)}**：{value}")
