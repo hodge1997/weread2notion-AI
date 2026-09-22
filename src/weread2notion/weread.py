@@ -72,15 +72,23 @@ class WeReadClient:
         return rows, totals
 
     def book_bundle(self, book_id: str) -> dict[str, Any]:
-        info = self.call("/book/info", bookId=book_id)
-        progress = self.call("/book/getprogress", bookId=book_id).get("book") or {}
-        chapter_data = self.call("/book/chapterinfo", bookId=book_id)
-        bookmark_data = self.call("/book/bookmarklist", bookId=book_id)
+        def fetch(stage: str, api_name: str, **params: Any) -> dict[str, Any]:
+            try:
+                return self.call(api_name, **params)
+            except WeReadError as exc:
+                raise WeReadError(
+                    f"阶段={stage}; 接口={api_name}; {exc}"
+                ) from exc
+
+        info = fetch("基本信息", "/book/info", bookId=book_id)
+        progress = fetch("阅读进度", "/book/getprogress", bookId=book_id).get("book") or {}
+        chapter_data = fetch("章节目录", "/book/chapterinfo", bookId=book_id)
+        bookmark_data = fetch("划线", "/book/bookmarklist", bookId=book_id)
         reviews: list[dict[str, Any]] = []
         synckey = 0
         while True:
-            page = self.call(
-                "/review/list/mine", bookid=book_id, synckey=synckey, count=100
+            page = fetch(
+                "笔记", "/review/list/mine", bookid=book_id, synckey=synckey, count=100
             )
             reviews.extend(
                 (item.get("review") or item) for item in (page.get("reviews") or [])

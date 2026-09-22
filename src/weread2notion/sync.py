@@ -88,7 +88,11 @@ class Synchronizer:
                 )
 
         previous_books = self.notion.book_index()
-        existing = {} if full else previous_books
+        # Keep the previous index available until all book-detail requests
+        # finish. If a full sync encounters unavailable/imported books, it
+        # falls back to a non-destructive incremental-style rebuild so those
+        # existing rows are not archived or lost.
+        existing = previous_books
         removed_ids = set(existing) - set(entry_by_id)
         changed_ids = {
             book_id
@@ -127,11 +131,10 @@ class Synchronizer:
                 print(f"跳过书籍 {book_id}（{exc}）")
 
         failed_ids = {item["book_id"] for item in self.failed_books}
+        rebuild = full and not failed_ids
         if failed_ids and full:
-            # A full sync archives existing rows before rebuilding them. Do not
-            # risk a partial rebuild when any required book could not be read.
-            raise RuntimeError(
-                "全量同步因书籍详情读取失败而中止："
+            print(
+                "全量同步发现无法读取的书籍，继续同步其余书籍并保留已有数据："
                 + ", ".join(sorted(failed_ids))
             )
         for book_id in failed_ids:
@@ -141,12 +144,15 @@ class Synchronizer:
         # Only start destructive work after every WeRead request has succeeded.
         # A transient upstream failure must never make the current shelf appear
         # empty and remove valid Notion pages.
-        if not full and self.preferences["delete_removed"]:
+        # A failed full sync is intentionally non-destructive for books whose
+        # details were unavailable, but the shelf remains authoritative for
+        # books that are explicitly absent from it.
+        if self.preferences["delete_removed"] and (not full or failed_ids):
             self.delete_removed_books(removed_ids, existing)
             for book_id in removed_ids:
                 existing.pop(book_id, None)
 
-        if full:
+        if rebuild:
             data_databases = [
                 name
                 for name in (
@@ -190,10 +196,10 @@ class Synchronizer:
                 if item.get("createTime"):
                     related_timestamps.append(int(item["createTime"]))
 
-        periods = self.sync_periods(days, related_timestamps, full=full)
+        periods = self.sync_periods(days, related_timestamps, full=rebuild)
 
         authors, categories = self.sync_people_and_categories(
-            entry_by_id.values(), bundles, full=full
+            entry_by_id.values(), bundles, full=rebuild
         )
         books = self.sync_books(
             entry_by_id,
@@ -207,7 +213,7 @@ class Synchronizer:
         if self.preferences["save_snapshots"]:
             self.sync_daily_snapshots(entry_by_id, bundles, previous_books)
         self.sync_book_content(bundles, books, periods)
-        self.sync_reading_records(days, periods, full=full)
+        self.sync_reading_records(days, periods, full=rebuild)
         self.counts["reading_seconds"] = int(
             (stats.get("overall") or {}).get("totalReadTime") or 0
         )
